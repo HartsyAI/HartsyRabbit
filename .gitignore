@@ -1,55 +1,30 @@
-# Prerequisites
-*.d
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
 
-# Linker output
-*.ilk
-*.map
-*.exp
+.vs/
 
-# Precompiled Headers
-*.gch
-*.pch
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
+*.nupkg
+**/packages/*
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+.idea/
+*.sln.iml
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# debug information files
-*.dwo
+.vscode/
