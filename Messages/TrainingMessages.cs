@@ -26,6 +26,27 @@ public sealed record TrainingProgressMessage : TrainingMessageBase, ITrainingPro
     public int? TotalEpochs { get; init; }
     public int? EstimatedMinutesRemaining { get; init; }
     public double? Loss { get; init; }
+
+    public static TrainingProgressMessage FromEvent(string backendId, string jobId, string? sessionId, int progress, string status, string? currentStep, int? currentStepNumber, int? totalSteps, int? currentEpoch, int? totalEpochs, int? estimatedMinutesRemaining, double? loss, object? metrics, Dictionary<string, object>? metadata)
+    {
+        return new TrainingProgressMessage
+        {
+            BackendId = backendId,
+            JobId = jobId,
+            SessionId = sessionId,
+            EventType = "TrainingProgress",
+            Progress = progress,
+            Status = status,
+            CurrentStep = currentStep,
+            CurrentStepNumber = currentStepNumber,
+            TotalSteps = totalSteps,
+            CurrentEpoch = currentEpoch,
+            TotalEpochs = totalEpochs,
+            EstimatedMinutesRemaining = estimatedMinutesRemaining,
+            Loss = loss,
+            Metadata = metadata
+        };
+    }
 }
 
 public sealed record TrainingCompletedMessage : TrainingMessageBase, ITrainingCompletedMessage

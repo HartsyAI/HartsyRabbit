@@ -105,3 +105,14 @@ public interface IPaymentMessage
     DateTime Timestamp { get; }
     Dictionary<string, object>? Metadata { get; }
 }
+
+public interface IPayoutProcessedMessage : IPaymentMessage
+{
+    string PayoutId { get; }
+    decimal Amount { get; }
+    string Currency { get; }
+    string Status { get; }
+    string PayoutMethod { get; }
+    string? TransactionReference { get; }
+    DateTime ProcessedAt { get; }
+}
