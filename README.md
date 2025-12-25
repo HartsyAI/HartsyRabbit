@@ -1,6 +1,7 @@
 # HartsyRabbit
 
-Shared RabbitMQ message bus library used across Hartsy ecosystem projects.
+Shared RabbitMQ message bus library used across Hartsy ecosystem projects. 
+This is an internal library that links all projects and keeps them typesafe. 
 
 ## What this repository contains
 
