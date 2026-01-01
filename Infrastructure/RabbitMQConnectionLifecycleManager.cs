@@ -247,6 +247,7 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
                 Password = _configuration.Connection.Password,
                 VirtualHost = _configuration.Connection.VirtualHost,
                 RequestedHeartbeat = TimeSpan.FromSeconds(_configuration.Connection.RequestedHeartbeatSeconds),
+                RequestedConnectionTimeout = TimeSpan.FromSeconds(_configuration.Connection.ConnectionTimeoutSeconds),
                 AutomaticRecoveryEnabled = _configuration.Connection.AutomaticRecoveryEnabled,
                 TopologyRecoveryEnabled = _configuration.Connection.AutomaticRecoveryEnabled
             };
@@ -260,12 +261,24 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
                 }
             }
 
-            _connection = await factory.CreateConnectionAsync(cancellationToken);
-            _connection.ConnectionShutdownAsync += (sender, args) =>
+            try
             {
-                _logger.Warning($"RabbitMQ connection shutdown: {args.ReplyText}");
-                return Task.CompletedTask;
-            };
+                _logger.Info($"[RABBITMQ-CONN] Attempting connection to {_configuration.Connection.HostName}:{_configuration.Connection.Port}...");
+                _connection = await factory.CreateConnectionAsync(cancellationToken);
+                _logger.Info($"[RABBITMQ-CONN] ✓ Connection established successfully!");
+
+                _connection.ConnectionShutdownAsync += (sender, args) =>
+                {
+                    _logger.Warning($"RabbitMQ connection shutdown: {args.ReplyText}");
+                    return Task.CompletedTask;
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"[RABBITMQ-CONN] ✗ Connection failed: {ex.GetType().Name} - {ex.Message}");
+                _logger.Error($"[RABBITMQ-CONN] Stack: {ex.StackTrace}");
+                throw;
+            }
         }
         finally
         {

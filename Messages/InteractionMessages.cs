@@ -467,3 +467,56 @@ public class UserDownloadedContentMessage : IUserInteractionMessage
         };
     }
 }
+
+/// <summary>
+/// Message published by Hartsy when interaction counts are updated.
+/// Broadcast to all sites (Hawtsy, Discord bot, etc.) for real-time UI updates.
+/// </summary>
+public class InteractionCountUpdatedMessage
+{
+    /// <summary>ID of the content whose counts were updated</summary>
+    public string ContentId { get; set; } = string.Empty;
+
+    /// <summary>Type of content ("model", "image", "preset")</summary>
+    public string ContentType { get; set; } = "model";
+
+    /// <summary>Updated like count</summary>
+    public int LikeCount { get; set; }
+
+    /// <summary>Updated favorite count</summary>
+    public int FavoriteCount { get; set; }
+
+    /// <summary>Updated download count</summary>
+    public int DownloadCount { get; set; }
+
+    /// <summary>Updated view count</summary>
+    public int ViewCount { get; set; }
+
+    /// <summary>When this update occurred</summary>
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Additional metadata</summary>
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static InteractionCountUpdatedMessage Create(
+        string contentId,
+        string contentType,
+        int likeCount,
+        int favoriteCount,
+        int downloadCount,
+        int viewCount,
+        Dictionary<string, object>? metadata = null)
+    {
+        return new InteractionCountUpdatedMessage
+        {
+            ContentId = contentId,
+            ContentType = contentType,
+            LikeCount = likeCount,
+            FavoriteCount = favoriteCount,
+            DownloadCount = downloadCount,
+            ViewCount = viewCount,
+            Timestamp = DateTime.UtcNow,
+            Metadata = metadata
+        };
+    }
+}

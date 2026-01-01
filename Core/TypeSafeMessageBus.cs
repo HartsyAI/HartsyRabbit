@@ -90,7 +90,17 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         _configuration.Validate();
 
         await _connectionManager.StartAsync(cancellationToken);
-        await _queueSetup.SetupInfrastructureAsync(cancellationToken);
+
+        // Only setup queues/exchanges if we're managing our own infrastructure
+        if (!_configuration.Site.SkipQueueSetup)
+        {
+            _logger.Info($"Setting up RabbitMQ infrastructure for '{siteName}'...");
+            await _queueSetup.SetupInfrastructureAsync(cancellationToken);
+        }
+        else
+        {
+            _logger.Info($"Skipping queue setup - using existing RabbitMQ infrastructure");
+        }
 
         foreach (string queue in GetQueuesToConsume(siteName))
         {

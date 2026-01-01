@@ -85,6 +85,12 @@ public class SiteSettings
 
     public bool ProcessBroadcastMessages { get; set; } = true;
 
+    /// <summary>
+    /// If true, skip queue/exchange setup and assume infrastructure already exists.
+    /// Use this when connecting to an external RabbitMQ server managed by another service.
+    /// </summary>
+    public bool SkipQueueSetup { get; set; } = false;
+
     public void Validate()
     {
         string[] validSiteNames = { CrossSiteQueueTopology.HARTSY, CrossSiteQueueTopology.HAWTSY, CrossSiteQueueTopology.DISCORD_BOT };
