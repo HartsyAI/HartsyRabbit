@@ -14,6 +14,7 @@ public static class CrossSiteQueueTopology
     public const string BROADCAST_EXCHANGE = "system.broadcast";
 
     public const string MODEL_EVENTS_QUEUE = "model.events";
+    public const string MEDIA_EVENTS_QUEUE = "media.events";
     public const string USER_INTERACTION_EVENTS_QUEUE = "user.interaction.events";
     public const string SYSTEM_EVENTS_QUEUE = "system.events";
     public const string TRAINING_EVENTS_QUEUE = "training.events";
@@ -29,6 +30,10 @@ public static class CrossSiteQueueTopology
     public const string MODEL_UPLOAD_ROUTING_KEY = "model.upload";
     public const string MODEL_PROGRESS_ROUTING_KEY = "model.progress";
     public const string MODEL_COMPLETE_ROUTING_KEY = "model.complete";
+    public const string MEDIA_UPLOAD_ROUTING_KEY = "media.upload";
+    public const string MEDIA_PROGRESS_ROUTING_KEY = "media.progress";
+    public const string MEDIA_COMPLETE_ROUTING_KEY = "media.complete";
+    public const string MEDIA_DELETED_ROUTING_KEY = "media.deleted";
     public const string USER_INTERACTION_ROUTING_KEY = "user.interaction";
     public const string SYSTEM_HEALTH_ROUTING_KEY = "system.health";
 
@@ -74,11 +79,34 @@ public static class CrossSiteQueueTopology
 
         string lower = messageType.ToLowerInvariant();
 
+        // Training events
         if (lower.Contains("training"))
         {
             return TRAINING_PROGRESS_ROUTING_KEY;
         }
 
+        // Generic media upload messages (new system)
+        if (lower.Contains("mediauploadstarted"))
+        {
+            return MEDIA_UPLOAD_ROUTING_KEY;
+        }
+
+        if (lower.Contains("mediauploadprogress"))
+        {
+            return MEDIA_PROGRESS_ROUTING_KEY;
+        }
+
+        if (lower.Contains("mediauploadcompleted") || lower.Contains("mediauploadcompletion"))
+        {
+            return MEDIA_COMPLETE_ROUTING_KEY;
+        }
+
+        if (lower.Contains("mediauploaddeleted") || lower.Contains("mediadeleted"))
+        {
+            return MEDIA_DELETED_ROUTING_KEY;
+        }
+
+        // Legacy model upload messages (backward compatibility)
         if (lower.Contains("modeluploadstarted"))
         {
             return MODEL_UPLOAD_ROUTING_KEY;
@@ -94,6 +122,12 @@ public static class CrossSiteQueueTopology
             return MODEL_COMPLETE_ROUTING_KEY;
         }
 
+        if (lower.Contains("modeldeleted"))
+        {
+            return MEDIA_DELETED_ROUTING_KEY; // Route to same place as media deletions
+        }
+
+        // User interactions
         if (lower.Contains("user") && (lower.Contains("liked") || lower.Contains("favorited") || lower.Contains("download")))
         {
             return USER_INTERACTION_ROUTING_KEY;
@@ -164,6 +198,7 @@ public static class CrossSiteQueueTopology
         List<QueueDefinition> queues = new List<QueueDefinition>
         {
             new QueueDefinition { Name = MODEL_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
+            new QueueDefinition { Name = MEDIA_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = USER_INTERACTION_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = SYSTEM_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetPriorityQueueArguments(config) },
             new QueueDefinition { Name = TRAINING_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetTrainingQueueArguments(config) },
@@ -182,17 +217,30 @@ public static class CrossSiteQueueTopology
     {
         return new List<QueueBinding>
         {
+            // Legacy model events (backward compatibility)
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MODEL_EVENTS_QUEUE, MODEL_UPLOAD_ROUTING_KEY),
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MODEL_EVENTS_QUEUE, MODEL_PROGRESS_ROUTING_KEY),
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MODEL_EVENTS_QUEUE, MODEL_COMPLETE_ROUTING_KEY),
+
+            // Generic media events (new system)
+            new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MEDIA_EVENTS_QUEUE, MEDIA_UPLOAD_ROUTING_KEY),
+            new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MEDIA_EVENTS_QUEUE, MEDIA_PROGRESS_ROUTING_KEY),
+            new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MEDIA_EVENTS_QUEUE, MEDIA_COMPLETE_ROUTING_KEY),
+            new QueueBinding(DOMAIN_EVENTS_EXCHANGE, MEDIA_EVENTS_QUEUE, MEDIA_DELETED_ROUTING_KEY),
+
+            // Other domain events
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, USER_INTERACTION_EVENTS_QUEUE, USER_INTERACTION_ROUTING_KEY),
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, SYSTEM_EVENTS_QUEUE, SYSTEM_HEALTH_ROUTING_KEY),
+
+            // Training events
             new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_STARTED_ROUTING_KEY),
             new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_PROGRESS_ROUTING_KEY),
             new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_COMPLETED_ROUTING_KEY),
             new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_FAILED_ROUTING_KEY),
             new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_TEST_IMAGE_ROUTING_KEY),
             new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_MODEL_READY_ROUTING_KEY),
+
+            // Site-specific routing
             new QueueBinding(SITE_ROUTING_EXCHANGE, HARTSY_INBOX_QUEUE, HARTSY_ROUTING_KEY),
             new QueueBinding(SITE_ROUTING_EXCHANGE, HAWTSY_INBOX_QUEUE, HAWTSY_ROUTING_KEY),
             new QueueBinding(SITE_ROUTING_EXCHANGE, DISCORD_BOT_INBOX_QUEUE, DISCORD_BOT_ROUTING_KEY)
