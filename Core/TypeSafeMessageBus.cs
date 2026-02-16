@@ -150,6 +150,7 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         List<string> queues = new List<string>
         {
             CrossSiteQueueTopology.MODEL_EVENTS_QUEUE,
+            CrossSiteQueueTopology.MEDIA_EVENTS_QUEUE,
             CrossSiteQueueTopology.USER_INTERACTION_EVENTS_QUEUE,
             CrossSiteQueueTopology.SYSTEM_EVENTS_QUEUE,
             CrossSiteQueueTopology.TRAINING_EVENTS_QUEUE,
