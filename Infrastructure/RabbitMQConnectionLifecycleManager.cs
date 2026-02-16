@@ -39,7 +39,7 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         try
         {
             if (_started) return;
-            await EnsureConnectionAsync(cancellationToken);
+            await ConnectInternalAsync(cancellationToken);
             _started = true;
         }
         finally
@@ -124,9 +124,7 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
     {
         if (!_started) throw new InvalidOperationException("Connection manager must be started before publishing.");
 
-        await EnsureConnectionAsync(cancellationToken);
-
-        if (_publishChannel != null && _publishChannel.IsOpen)
+        if (_publishChannel != null && _publishChannel.IsOpen && _connection?.IsOpen == true)
         {
             return _publishChannel;
         }
@@ -134,7 +132,11 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         await _connectionLock.WaitAsync(cancellationToken);
         try
         {
-            await EnsureConnectionAsync(cancellationToken);
+            // Reconnect if needed (lock is already held, so call internal directly)
+            if (_connection?.IsOpen != true)
+            {
+                await ConnectInternalAsync(cancellationToken);
+            }
 
             if (_publishChannel != null && _publishChannel.IsOpen)
             {
@@ -165,7 +167,21 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         if (messageHandler == null) throw new ArgumentNullException(nameof(messageHandler));
         if (!_started) throw new InvalidOperationException("Connection manager must be started before consuming.");
 
-        await EnsureConnectionAsync(cancellationToken);
+        if (_connection?.IsOpen != true)
+        {
+            await _connectionLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_connection?.IsOpen != true)
+                {
+                    await ConnectInternalAsync(cancellationToken);
+                }
+            }
+            finally
+            {
+                _connectionLock.Release();
+            }
+        }
 
         if (_consumerChannels.TryGetValue(queueName, out IChannel? existing) && existing.IsOpen)
         {
@@ -230,59 +246,52 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         _logger.Info($"Started consumer for queue '{queueName}' tag '{tag}'");
     }
 
-    private async Task EnsureConnectionAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates the RabbitMQ connection. Caller MUST hold _connectionLock.
+    /// </summary>
+    private async Task ConnectInternalAsync(CancellationToken cancellationToken)
     {
         if (_connection?.IsOpen == true) return;
 
-        await _connectionLock.WaitAsync(cancellationToken);
-        try
+        ConnectionFactory factory = new ConnectionFactory
         {
-            if (_connection?.IsOpen == true) return;
+            HostName = _configuration.Connection.HostName,
+            Port = _configuration.Connection.Port,
+            UserName = _configuration.Connection.Username,
+            Password = _configuration.Connection.Password,
+            VirtualHost = _configuration.Connection.VirtualHost,
+            RequestedHeartbeat = TimeSpan.FromSeconds(_configuration.Connection.RequestedHeartbeatSeconds),
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(_configuration.Connection.ConnectionTimeoutSeconds),
+            AutomaticRecoveryEnabled = _configuration.Connection.AutomaticRecoveryEnabled,
+            TopologyRecoveryEnabled = _configuration.Connection.AutomaticRecoveryEnabled
+        };
 
-            ConnectionFactory factory = new ConnectionFactory
+        if (_configuration.Connection.UseTLS)
+        {
+            factory.Ssl.Enabled = true;
+            if (!string.IsNullOrWhiteSpace(_configuration.Connection.TLSServerName))
             {
-                HostName = _configuration.Connection.HostName,
-                Port = _configuration.Connection.Port,
-                UserName = _configuration.Connection.Username,
-                Password = _configuration.Connection.Password,
-                VirtualHost = _configuration.Connection.VirtualHost,
-                RequestedHeartbeat = TimeSpan.FromSeconds(_configuration.Connection.RequestedHeartbeatSeconds),
-                RequestedConnectionTimeout = TimeSpan.FromSeconds(_configuration.Connection.ConnectionTimeoutSeconds),
-                AutomaticRecoveryEnabled = _configuration.Connection.AutomaticRecoveryEnabled,
-                TopologyRecoveryEnabled = _configuration.Connection.AutomaticRecoveryEnabled
-            };
-
-            if (_configuration.Connection.UseTLS)
-            {
-                factory.Ssl.Enabled = true;
-                if (!string.IsNullOrWhiteSpace(_configuration.Connection.TLSServerName))
-                {
-                    factory.Ssl.ServerName = _configuration.Connection.TLSServerName;
-                }
-            }
-
-            try
-            {
-                _logger.Info($"[RABBITMQ-CONN] Attempting connection to {_configuration.Connection.HostName}:{_configuration.Connection.Port}...");
-                _connection = await factory.CreateConnectionAsync(cancellationToken);
-                _logger.Info($"[RABBITMQ-CONN] ✓ Connection established successfully!");
-
-                _connection.ConnectionShutdownAsync += (sender, args) =>
-                {
-                    _logger.Warning($"RabbitMQ connection shutdown: {args.ReplyText}");
-                    return Task.CompletedTask;
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.Error($"[RABBITMQ-CONN] ✗ Connection failed: {ex.GetType().Name} - {ex.Message}");
-                _logger.Error($"[RABBITMQ-CONN] Stack: {ex.StackTrace}");
-                throw;
+                factory.Ssl.ServerName = _configuration.Connection.TLSServerName;
             }
         }
-        finally
+
+        try
         {
-            _connectionLock.Release();
+            _logger.Info($"[RABBITMQ-CONN] Attempting connection to {_configuration.Connection.HostName}:{_configuration.Connection.Port}...");
+            _connection = await factory.CreateConnectionAsync(cancellationToken);
+            _logger.Info($"[RABBITMQ-CONN] ✓ Connection established successfully!");
+
+            _connection.ConnectionShutdownAsync += (sender, args) =>
+            {
+                _logger.Warning($"RabbitMQ connection shutdown: {args.ReplyText}");
+                return Task.CompletedTask;
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"[RABBITMQ-CONN] ✗ Connection failed: {ex.GetType().Name} - {ex.Message}");
+            _logger.Error($"[RABBITMQ-CONN] Stack: {ex.StackTrace}");
+            throw;
         }
     }
 
