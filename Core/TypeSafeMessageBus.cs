@@ -168,23 +168,23 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
     private async Task<bool> HandleIncomingMessageAsync(string body, Dictionary<string, object?> headers)
     {
         Stopwatch sw = Stopwatch.StartNew();
-
+        _logger.Info($"[MSG-BUS] ===== INCOMING MESSAGE =====");
+        _logger.Info($"[MSG-BUS] Body length: {body.Length} chars");
         string messageType;
         int version;
         string messageId;
         string sourceSite;
         string targetSites;
-
         try
         {
             using JsonDocument doc = JsonMessageSerializer.Parse(body);
             JsonElement root = doc.RootElement;
-
             messageType = root.TryGetProperty("MessageType", out JsonElement mt) ? mt.GetString() ?? string.Empty : string.Empty;
             version = root.TryGetProperty("Version", out JsonElement v) && v.TryGetInt32(out int vi) ? vi : 1;
             messageId = root.TryGetProperty("MessageId", out JsonElement mi) ? mi.GetString() ?? string.Empty : string.Empty;
             sourceSite = root.TryGetProperty("SourceSite", out JsonElement ss) ? ss.GetString() ?? string.Empty : string.Empty;
             targetSites = root.TryGetProperty("TargetSites", out JsonElement ts) ? ts.GetString() ?? "*" : "*";
+            _logger.Info($"[MSG-BUS] Parsed: Type={messageType}, Id={messageId}, Source={sourceSite}, Target={targetSites}");
         }
         catch (Exception ex)
         {
@@ -192,21 +192,23 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
             Interlocked.Increment(ref _processingErrors);
             return false;
         }
-
         if (!ShouldProcessTarget(targetSites, _siteName))
         {
+            _logger.Info($"[MSG-BUS] Skipping message {messageId} - target '{targetSites}' doesn't match site '{_siteName}'");
             Interlocked.Increment(ref _messagesProcessed);
             return true;
         }
-
+        _logger.Info($"[MSG-BUS] Processing message {messageId} of type {messageType}");
         try
         {
             bool anyHandler = false;
 
-            foreach (MessageHandlerRegistration reg in _registrations.GetHandlersForMessageType(messageType))
+            List<MessageHandlerRegistration> handlers = _registrations.GetHandlersForMessageType(messageType).ToList();
+            _logger.Info($"[MSG-BUS] Found {handlers.Count} handler(s) for message type '{messageType}'");
+            foreach (MessageHandlerRegistration reg in handlers)
             {
                 anyHandler = true;
-
+                _logger.Info($"[MSG-BUS] Invoking handler: {reg.HandlerType.Name}");
                 _ = version;
 
                 Type envelopeType = typeof(GenericMessageEnvelope<>).MakeGenericType(reg.MessageType);
