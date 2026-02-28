@@ -78,3 +78,36 @@ public sealed record TrainingModelReadyMessage : TrainingMessageBase, ITrainingM
     public string NetworkVolumePath { get; init; } = string.Empty;
     public long? TotalSizeBytes { get; init; }
 }
+
+/// <summary>Sent by Hartsy to Hawtsy after fetching model results from the training backend.
+/// Tells Hawtsy to download the trained model file and process it through the upload pipeline
+/// (storage, hashing, torrent creation, seeding) just like a regular model upload.</summary>
+public sealed record TrainingModelUploadMessage : TrainingMessageBase
+{
+    /// <summary>Download URL for the trained model file (from FAL, RunPod, etc.)</summary>
+    public string ModelDownloadUrl { get; init; } = string.Empty;
+
+    /// <summary>Optional config file download URL</summary>
+    public string? ConfigDownloadUrl { get; init; }
+
+    /// <summary>Name of the trained model (typically the trigger word)</summary>
+    public string ModelName { get; init; } = string.Empty;
+
+    /// <summary>Original filename for storage (e.g., "my_lora.safetensors")</summary>
+    public string FileName { get; init; } = string.Empty;
+
+    /// <summary>Training type (flux-lora, flux-finetune, etc.)</summary>
+    public string TrainingType { get; init; } = string.Empty;
+
+    /// <summary>Trigger word used during training</summary>
+    public string TriggerWord { get; init; } = string.Empty;
+
+    /// <summary>User who initiated the training</summary>
+    public string UserId { get; init; } = string.Empty;
+
+    /// <summary>Internal DB ID of the training job on Hartsy</summary>
+    public int InternalJobId { get; init; }
+
+    /// <summary>Estimated file size in bytes (if known from backend)</summary>
+    public long? FileSizeBytes { get; init; }
+}
