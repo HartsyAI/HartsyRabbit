@@ -158,7 +158,7 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
 
         if (_configuration.Site.ProcessBroadcastMessages)
         {
-            queues.Add(CrossSiteQueueTopology.BROADCAST_QUEUE);
+            queues.Add(CrossSiteQueueTopology.GetBroadcastQueueForSite(siteName));
         }
 
         return queues.Distinct(StringComparer.Ordinal);
