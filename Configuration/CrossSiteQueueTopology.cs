@@ -23,7 +23,10 @@ public static class CrossSiteQueueTopology
     public const string HAWTSY_INBOX_QUEUE = "hawtsy.inbox";
     public const string DISCORD_BOT_INBOX_QUEUE = "discord.inbox";
 
-    public const string BROADCAST_QUEUE = "system.broadcast";
+    public const string HARTSY_BROADCAST_QUEUE = "hartsy.broadcast";
+    public const string HAWTSY_BROADCAST_QUEUE = "hawtsy.broadcast";
+    public const string DISCORD_BOT_BROADCAST_QUEUE = "discord.broadcast";
+
     public const string DEAD_LETTER_QUEUE = "hartsy.deadletter.queue";
     public const string MONITORING_QUEUE = "monitoring";
 
@@ -66,6 +69,17 @@ public static class CrossSiteQueueTopology
             HARTSY => HARTSY_ROUTING_KEY,
             HAWTSY => HAWTSY_ROUTING_KEY,
             DISCORD_BOT => DISCORD_BOT_ROUTING_KEY,
+            _ => throw new ArgumentException($"Unknown site name '{siteName}'", nameof(siteName))
+        };
+    }
+
+    public static string GetBroadcastQueueForSite(string siteName)
+    {
+        return siteName switch
+        {
+            HARTSY => HARTSY_BROADCAST_QUEUE,
+            HAWTSY => HAWTSY_BROADCAST_QUEUE,
+            DISCORD_BOT => DISCORD_BOT_BROADCAST_QUEUE,
             _ => throw new ArgumentException($"Unknown site name '{siteName}'", nameof(siteName))
         };
     }
@@ -205,7 +219,9 @@ public static class CrossSiteQueueTopology
             new QueueDefinition { Name = HARTSY_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = HAWTSY_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = DISCORD_BOT_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
-            new QueueDefinition { Name = BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
+            new QueueDefinition { Name = HARTSY_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
+            new QueueDefinition { Name = HAWTSY_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
+            new QueueDefinition { Name = DISCORD_BOT_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
             new QueueDefinition { Name = DEAD_LETTER_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetDeadLetterQueueArguments(config) },
             new QueueDefinition { Name = MONITORING_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) }
         };
@@ -243,7 +259,12 @@ public static class CrossSiteQueueTopology
             // Site-specific routing
             new QueueBinding(SITE_ROUTING_EXCHANGE, HARTSY_INBOX_QUEUE, HARTSY_ROUTING_KEY),
             new QueueBinding(SITE_ROUTING_EXCHANGE, HAWTSY_INBOX_QUEUE, HAWTSY_ROUTING_KEY),
-            new QueueBinding(SITE_ROUTING_EXCHANGE, DISCORD_BOT_INBOX_QUEUE, DISCORD_BOT_ROUTING_KEY)
+            new QueueBinding(SITE_ROUTING_EXCHANGE, DISCORD_BOT_INBOX_QUEUE, DISCORD_BOT_ROUTING_KEY),
+
+            // Broadcast routing
+            new QueueBinding(BROADCAST_EXCHANGE, HARTSY_BROADCAST_QUEUE, string.Empty),
+            new QueueBinding(BROADCAST_EXCHANGE, HAWTSY_BROADCAST_QUEUE, string.Empty),
+            new QueueBinding(BROADCAST_EXCHANGE, DISCORD_BOT_BROADCAST_QUEUE, string.Empty)
         };
     }
 }
