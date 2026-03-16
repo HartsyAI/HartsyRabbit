@@ -10,6 +10,7 @@ public interface ITypeSafeMessageBus
     Task StopAsync(CancellationToken cancellationToken = default);
     Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default);
     MessageBusStatistics GetStatistics();
+    Task<MessageBusStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default);
     event EventHandler<MessagePublishedEventArgs>? MessagePublished;
     event EventHandler<MessageProcessedEventArgs>? MessageProcessed;
     event EventHandler<MessageErrorEventArgs>? MessageError;

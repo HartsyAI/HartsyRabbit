@@ -9,13 +9,14 @@ using System.Text;
 
 namespace HartsyRabbit.Publishers;
 
-public sealed class TypeSafeMessagePublisher : ITypeSafeMessagePublisher
+public sealed class TypeSafeMessagePublisher : ITypeSafeMessagePublisher, IDisposable
 {
     private readonly MessageBusConfiguration _configuration;
     private readonly IRabbitMQConnectionLifecycleManager _connectionManager;
     private readonly IMessageBusLogger _logger;
 
     private readonly SemaphoreSlim _publishLock = new(1, 1);
+    private bool _disposed;
 
     public TypeSafeMessagePublisher(
         IOptions<MessageBusConfiguration> configuration,
@@ -130,6 +131,13 @@ public sealed class TypeSafeMessagePublisher : ITypeSafeMessagePublisher
         }
 
         return new MessageRoutingInfo { Exchange = CrossSiteQueueTopology.DOMAIN_EVENTS_EXCHANGE, RoutingKey = CrossSiteQueueTopology.GetRoutingKeyForMessageType(envelope.MessageType), IsBroadcast = false };
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _publishLock.Dispose();
     }
 
     private sealed class MessageRoutingInfo

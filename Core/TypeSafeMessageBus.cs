@@ -28,6 +28,7 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
     private readonly object _statsLock = new();
     private double _avgProcessingTimeMs;
     private DateTime _startedAtUtc;
+    private volatile bool _lastKnownHealthy;
 
     private string _siteName = string.Empty;
     private bool _started;
@@ -139,7 +140,37 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
             ProcessingErrors = Interlocked.Read(ref _processingErrors),
             AverageProcessingTimeMs = _avgProcessingTimeMs,
             MessagesPerMinute = msgsPerMinute,
-            IsConnectionHealthy = _connectionManager.IsHealthyAsync().GetAwaiter().GetResult(),
+            IsConnectionHealthy = _lastKnownHealthy,
+            RegisteredHandlers = _registrations.GetRegistrations().Count,
+            CollectedAt = DateTime.UtcNow
+        };
+    }
+
+    public async Task<MessageBusStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
+    {
+        double msgsPerMinute;
+        lock (_statsLock)
+        {
+            double mins = Math.Max(0.0001, (DateTime.UtcNow - _startedAtUtc).TotalMinutes);
+            msgsPerMinute = _messagesProcessed / mins;
+        }
+
+        try
+        {
+            _lastKnownHealthy = await _connectionManager.IsHealthyAsync(cancellationToken);
+        }
+        catch
+        {
+        }
+
+        return new MessageBusStatistics
+        {
+            MessagesPublished = Interlocked.Read(ref _messagesPublished),
+            MessagesProcessed = Interlocked.Read(ref _messagesProcessed),
+            ProcessingErrors = Interlocked.Read(ref _processingErrors),
+            AverageProcessingTimeMs = _avgProcessingTimeMs,
+            MessagesPerMinute = msgsPerMinute,
+            IsConnectionHealthy = _lastKnownHealthy,
             RegisteredHandlers = _registrations.GetRegistrations().Count,
             CollectedAt = DateTime.UtcNow
         };

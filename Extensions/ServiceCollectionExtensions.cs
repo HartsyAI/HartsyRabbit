@@ -218,7 +218,7 @@ public sealed class MessageBusHealthCheck : IHealthCheck
                 return HealthCheckResult.Unhealthy("RabbitMQ message bus is not healthy");
             }
 
-            MessageBusStatistics stats = _bus.GetStatistics();
+            MessageBusStatistics stats = await _bus.GetStatisticsAsync(cancellationToken);
             Dictionary<string, object> data = new()
             {
                 { "MessagesPublished", stats.MessagesPublished },

@@ -8,7 +8,7 @@ using System.Text;
 
 namespace HartsyRabbit.Infrastructure;
 
-public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLifecycleManager, IDisposable
+public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLifecycleManager, IAsyncDisposable, IDisposable
 {
     private readonly MessageBusConfiguration _configuration;
     private readonly IMessageBusLogger _logger;
@@ -102,15 +102,20 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         }
     }
 
+    /// <summary>Checks if the RabbitMQ connection is healthy.</summary>
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
     {
         if (!_started || _disposed) return false;
         if (_connection?.IsOpen != true) return false;
 
+        if (_publishChannel?.IsOpen == true) return true;
+
         try
         {
-            IChannel test = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
-            await test.CloseAsync(cancellationToken);
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            IChannel test = await _connection.CreateChannelAsync(cancellationToken: cts.Token);
+            await test.CloseAsync(cts.Token);
             test.Dispose();
             return true;
         }
@@ -295,6 +300,23 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         }
     }
 
+    /// <summary>Async disposal with graceful shutdown.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        try
+        {
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+            await StopAsync(cts.Token);
+        }
+        catch { }
+
+        _connectionLock.Dispose();
+    }
+
+    /// <summary>Sync disposal — releases resources without async graceful shutdown.</summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -302,11 +324,18 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
 
         try
         {
-            StopAsync().GetAwaiter().GetResult();
+            foreach ((string _, IChannel ch) in _consumerChannels)
+            {
+                try { ch.Dispose(); } catch { }
+            }
+            _consumerChannels.Clear();
+            _consumerTags.Clear();
+            _publishChannel?.Dispose();
+            _publishChannel = null;
+            _connection?.Dispose();
+            _connection = null;
         }
-        catch
-        {
-        }
+        catch { }
 
         _connectionLock.Dispose();
     }
