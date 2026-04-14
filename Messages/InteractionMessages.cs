@@ -433,6 +433,68 @@ public class UserLikedCommunityPostMessage : IUserInteractionMessage
     }
 }
 
+/// <summary>Message published when a user favorites a community post.</summary>
+public class UserFavoritedCommunityPostMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string PostId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "CommunityPostFavorited";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserFavoritedCommunityPostMessage CreateFavorite(string userId, string communityPostId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedFavoriteCount.HasValue)
+        {
+            finalMetadata["expectedFavoriteCount"] = expectedFavoriteCount.Value;
+        }
+        return new UserFavoritedCommunityPostMessage
+        {
+            UserId = userId,
+            PostId = communityPostId,
+            InteractionType = "CommunityPostFavorited",
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+
+    public static UserFavoritedCommunityPostMessage CreateUnfavorite(string userId, string communityPostId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedFavoriteCount.HasValue)
+        {
+            finalMetadata["expectedFavoriteCount"] = expectedFavoriteCount.Value;
+        }
+        return new UserFavoritedCommunityPostMessage
+        {
+            UserId = userId,
+            PostId = communityPostId,
+            InteractionType = "CommunityPostUnfavorited",
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
 /// <summary>Message published when a user downloads content (model, preset, etc). Cross-site notification for analytics and user interaction tracking.</summary>
 public class UserDownloadedContentMessage : IUserInteractionMessage
 {
