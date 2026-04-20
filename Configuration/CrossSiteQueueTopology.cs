@@ -115,7 +115,7 @@ public static class CrossSiteQueueTopology
             return MEDIA_COMPLETE_ROUTING_KEY;
         }
 
-        if (lower.Contains("mediauploaddeleted") || lower.Contains("mediadeleted"))
+        if (lower.Contains("uploaddelete") || lower.Contains("mediauploaddeleted") || lower.Contains("mediadeleted"))
         {
             return MEDIA_DELETED_ROUTING_KEY;
         }
