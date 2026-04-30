@@ -22,3 +22,19 @@ public class ReportResolvedMessage
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>Published when a user blocks another user.</summary>
+public class UserBlockedMessage
+{
+    public string BlockerId { get; set; } = string.Empty;
+    public string BlockedId { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+    public DateTime BlockedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Published when a user unblocks another user.</summary>
+public class UserUnblockedMessage
+{
+    public string BlockerId { get; set; } = string.Empty;
+    public string BlockedId { get; set; } = string.Empty;
+    public DateTime UnblockedAt { get; set; } = DateTime.UtcNow;
+}
