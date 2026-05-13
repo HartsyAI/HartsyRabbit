@@ -68,6 +68,9 @@ public sealed class HmacUploadTokenService : IUploadTokenService
         }
     }
 
+    // TODO: Harden token model — shorten IssuerLifetimeMinutes to ~15 (currently 60) and add a
+    // jti deny-list (Redis SET with TTL matching expiry) so a token can only be consumed once.
+    // Today: a leaked token is replayable until expiry within the bound uploadId.
     public string Issue(UploadTokenClaims claims)
     {
         DateTime now = DateTime.UtcNow;
