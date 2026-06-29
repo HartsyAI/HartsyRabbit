@@ -5,8 +5,10 @@ public static class CrossSiteQueueTopology
     public const string HARTSY = "Hartsy";
     public const string HAWTSY = "Hawtsy";
     public const string DISCORD_BOT = "DiscordBot";
+    public const string HARTSY_STORAGE = "HartsyStorage";
+    public const string HARTSY_SEEDER = "HartsySeeder";
 
-    public static readonly string[] ALL_SITES = { HARTSY, HAWTSY, DISCORD_BOT };
+    public static readonly string[] ALL_SITES = { HARTSY, HAWTSY, DISCORD_BOT, HARTSY_STORAGE, HARTSY_SEEDER };
 
     public const string DOMAIN_EVENTS_EXCHANGE = "domain.events";
     public const string TRAINING_EVENTS_EXCHANGE = "training.events";
@@ -22,10 +24,14 @@ public static class CrossSiteQueueTopology
     public const string HARTSY_INBOX_QUEUE = "hartsy.inbox";
     public const string HAWTSY_INBOX_QUEUE = "hawtsy.inbox";
     public const string DISCORD_BOT_INBOX_QUEUE = "discord.inbox";
+    public const string HARTSY_STORAGE_INBOX_QUEUE = "hartsystorage.inbox";
+    public const string HARTSY_SEEDER_INBOX_QUEUE = "hartsyseeder.inbox";
 
     public const string HARTSY_BROADCAST_QUEUE = "hartsy.broadcast";
     public const string HAWTSY_BROADCAST_QUEUE = "hawtsy.broadcast";
     public const string DISCORD_BOT_BROADCAST_QUEUE = "discord.broadcast";
+    public const string HARTSY_STORAGE_BROADCAST_QUEUE = "hartsystorage.broadcast";
+    public const string HARTSY_SEEDER_BROADCAST_QUEUE = "hartsyseeder.broadcast";
 
     public const string DEAD_LETTER_QUEUE = "hartsy.deadletter.queue";
     public const string MONITORING_QUEUE = "monitoring";
@@ -37,6 +43,8 @@ public static class CrossSiteQueueTopology
     public const string MEDIA_PROGRESS_ROUTING_KEY = "media.progress";
     public const string MEDIA_COMPLETE_ROUTING_KEY = "media.complete";
     public const string MEDIA_DELETED_ROUTING_KEY = "media.deleted";
+    public const string TORRENT_REQUESTED_ROUTING_KEY = "torrent.requested";
+    public const string TORRENT_READY_ROUTING_KEY = "torrent.ready";
     public const string USER_INTERACTION_ROUTING_KEY = "user.interaction";
     public const string SYSTEM_HEALTH_ROUTING_KEY = "system.health";
 
@@ -50,6 +58,8 @@ public static class CrossSiteQueueTopology
     public const string HARTSY_ROUTING_KEY = "hartsy";
     public const string HAWTSY_ROUTING_KEY = "hawtsy";
     public const string DISCORD_BOT_ROUTING_KEY = "discord";
+    public const string HARTSY_STORAGE_ROUTING_KEY = "hartsystorage";
+    public const string HARTSY_SEEDER_ROUTING_KEY = "hartsyseeder";
 
     public static string GetInboxQueueForSite(string siteName)
     {
@@ -58,6 +68,8 @@ public static class CrossSiteQueueTopology
             HARTSY => HARTSY_INBOX_QUEUE,
             HAWTSY => HAWTSY_INBOX_QUEUE,
             DISCORD_BOT => DISCORD_BOT_INBOX_QUEUE,
+            HARTSY_STORAGE => HARTSY_STORAGE_INBOX_QUEUE,
+            HARTSY_SEEDER => HARTSY_SEEDER_INBOX_QUEUE,
             _ => throw new ArgumentException($"Unknown site name '{siteName}'", nameof(siteName))
         };
     }
@@ -69,6 +81,8 @@ public static class CrossSiteQueueTopology
             HARTSY => HARTSY_ROUTING_KEY,
             HAWTSY => HAWTSY_ROUTING_KEY,
             DISCORD_BOT => DISCORD_BOT_ROUTING_KEY,
+            HARTSY_STORAGE => HARTSY_STORAGE_ROUTING_KEY,
+            HARTSY_SEEDER => HARTSY_SEEDER_ROUTING_KEY,
             _ => throw new ArgumentException($"Unknown site name '{siteName}'", nameof(siteName))
         };
     }
@@ -80,6 +94,8 @@ public static class CrossSiteQueueTopology
             HARTSY => HARTSY_BROADCAST_QUEUE,
             HAWTSY => HAWTSY_BROADCAST_QUEUE,
             DISCORD_BOT => DISCORD_BOT_BROADCAST_QUEUE,
+            HARTSY_STORAGE => HARTSY_STORAGE_BROADCAST_QUEUE,
+            HARTSY_SEEDER => HARTSY_SEEDER_BROADCAST_QUEUE,
             _ => throw new ArgumentException($"Unknown site name '{siteName}'", nameof(siteName))
         };
     }
@@ -118,6 +134,22 @@ public static class CrossSiteQueueTopology
         if (lower.Contains("uploaddelete") || lower.Contains("mediauploaddeleted") || lower.Contains("mediadeleted"))
         {
             return MEDIA_DELETED_ROUTING_KEY;
+        }
+
+        // Torrent lifecycle (storage <-> seeder)
+        if (lower.Contains("torrentrequested"))
+        {
+            return TORRENT_REQUESTED_ROUTING_KEY;
+        }
+
+        if (lower.Contains("torrentready"))
+        {
+            return TORRENT_READY_ROUTING_KEY;
+        }
+
+        if (lower.Contains("torrentremove"))
+        {
+            return TORRENT_REQUESTED_ROUTING_KEY; // routed to the seeder like other torrent requests
         }
 
         // Legacy model upload messages (backward compatibility)
@@ -219,9 +251,13 @@ public static class CrossSiteQueueTopology
             new QueueDefinition { Name = HARTSY_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = HAWTSY_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = DISCORD_BOT_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
+            new QueueDefinition { Name = HARTSY_STORAGE_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
+            new QueueDefinition { Name = HARTSY_SEEDER_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = HARTSY_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
             new QueueDefinition { Name = HAWTSY_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
             new QueueDefinition { Name = DISCORD_BOT_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
+            new QueueDefinition { Name = HARTSY_STORAGE_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
+            new QueueDefinition { Name = HARTSY_SEEDER_BROADCAST_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetBroadcastQueueArguments(config) },
             new QueueDefinition { Name = DEAD_LETTER_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetDeadLetterQueueArguments(config) },
             new QueueDefinition { Name = MONITORING_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) }
         };
@@ -260,11 +296,15 @@ public static class CrossSiteQueueTopology
             new QueueBinding(SITE_ROUTING_EXCHANGE, HARTSY_INBOX_QUEUE, HARTSY_ROUTING_KEY),
             new QueueBinding(SITE_ROUTING_EXCHANGE, HAWTSY_INBOX_QUEUE, HAWTSY_ROUTING_KEY),
             new QueueBinding(SITE_ROUTING_EXCHANGE, DISCORD_BOT_INBOX_QUEUE, DISCORD_BOT_ROUTING_KEY),
+            new QueueBinding(SITE_ROUTING_EXCHANGE, HARTSY_STORAGE_INBOX_QUEUE, HARTSY_STORAGE_ROUTING_KEY),
+            new QueueBinding(SITE_ROUTING_EXCHANGE, HARTSY_SEEDER_INBOX_QUEUE, HARTSY_SEEDER_ROUTING_KEY),
 
             // Broadcast routing
             new QueueBinding(BROADCAST_EXCHANGE, HARTSY_BROADCAST_QUEUE, string.Empty),
             new QueueBinding(BROADCAST_EXCHANGE, HAWTSY_BROADCAST_QUEUE, string.Empty),
-            new QueueBinding(BROADCAST_EXCHANGE, DISCORD_BOT_BROADCAST_QUEUE, string.Empty)
+            new QueueBinding(BROADCAST_EXCHANGE, DISCORD_BOT_BROADCAST_QUEUE, string.Empty),
+            new QueueBinding(BROADCAST_EXCHANGE, HARTSY_STORAGE_BROADCAST_QUEUE, string.Empty),
+            new QueueBinding(BROADCAST_EXCHANGE, HARTSY_SEEDER_BROADCAST_QUEUE, string.Empty)
         };
     }
 }
