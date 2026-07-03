@@ -165,7 +165,7 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
 
     public async Task StartConsumingAsync(
         string queueName,
-        Func<string, Dictionary<string, object?>, Task<bool>> messageHandler,
+        Func<string, Dictionary<string, object?>, Task<MessageConsumeResult>> messageHandler,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(queueName)) throw new ArgumentException("Queue name cannot be null or empty", nameof(queueName));
@@ -204,7 +204,7 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
         AsyncEventingBasicConsumer consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += async (sender, eventArgs) =>
         {
-            bool ok = false;
+            MessageConsumeResult outcome;
             try
             {
                 string body = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
@@ -218,23 +218,38 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
                     }
                 }
 
-                ok = await messageHandler(body, headers);
+                outcome = await messageHandler(body, headers);
             }
             catch (Exception ex)
             {
+                // Unhandled handler crash: treat as transient (requeue once, then dead-letter).
                 _logger.Error($"Unhandled exception in consumer for {queueName}", ex);
-                ok = false;
+                outcome = MessageConsumeResult.Requeue;
             }
 
             try
             {
-                if (ok)
+                switch (outcome)
                 {
-                    await channel.BasicAckAsync(eventArgs.DeliveryTag, multiple: false, cancellationToken: CancellationToken.None);
-                }
-                else
-                {
-                    await channel.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: true, cancellationToken: CancellationToken.None);
+                    case MessageConsumeResult.Ack:
+                        await channel.BasicAckAsync(eventArgs.DeliveryTag, multiple: false, cancellationToken: CancellationToken.None);
+                        break;
+                    case MessageConsumeResult.Requeue:
+                        // Cap retries: a message already redelivered once is dead-lettered instead of
+                        // requeued, so a poison message can't hot-loop the queue. requeue:false routes
+                        // to the configured dead-letter queue.
+                        bool requeue = !eventArgs.Redelivered;
+                        if (!requeue)
+                        {
+                            _logger.Warning($"Message from {queueName} failed again after redelivery; dead-lettering (delivery tag {eventArgs.DeliveryTag}).");
+                        }
+                        await channel.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: requeue, cancellationToken: CancellationToken.None);
+                        break;
+                    case MessageConsumeResult.Reject:
+                    default:
+                        // Permanent failure / unparseable: never requeue, send straight to dead-letter.
+                        await channel.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: false, cancellationToken: CancellationToken.None);
+                        break;
                 }
             }
             catch (Exception ex)

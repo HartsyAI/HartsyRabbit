@@ -93,7 +93,7 @@ public class SiteSettings
 
     public void Validate()
     {
-        string[] validSiteNames = { CrossSiteQueueTopology.HARTSY, CrossSiteQueueTopology.HAWTSY, CrossSiteQueueTopology.DISCORD_BOT };
+        string[] validSiteNames = { CrossSiteQueueTopology.HARTSY, CrossSiteQueueTopology.HAWTSY, CrossSiteQueueTopology.DISCORD_BOT, CrossSiteQueueTopology.HARTSY_STORAGE, CrossSiteQueueTopology.HARTSY_SEEDER };
 
         if (!validSiteNames.Contains(SiteName))
         {

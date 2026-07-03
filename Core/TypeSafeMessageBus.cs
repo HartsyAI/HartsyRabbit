@@ -196,7 +196,7 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         return queues.Distinct(StringComparer.Ordinal);
     }
 
-    private async Task<bool> HandleIncomingMessageAsync(string body, Dictionary<string, object?> headers)
+    private async Task<MessageConsumeResult> HandleIncomingMessageAsync(string body, Dictionary<string, object?> headers)
     {
         Stopwatch sw = Stopwatch.StartNew();
         _logger.Verbose($"[MSG-BUS] ===== INCOMING MESSAGE =====");
@@ -221,13 +221,14 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         {
             _logger.Error("Failed to parse incoming message JSON", ex);
             Interlocked.Increment(ref _processingErrors);
-            return false;
+            // Unparseable message can never succeed on retry — dead-letter it.
+            return MessageConsumeResult.Reject;
         }
         if (!ShouldProcessTarget(targetSites, _siteName))
         {
             _logger.Verbose($"[MSG-BUS] Skipping message {messageId} - target '{targetSites}' doesn't match site '{_siteName}'");
             Interlocked.Increment(ref _messagesProcessed);
-            return true;
+            return MessageConsumeResult.Ack;
         }
         _logger.Verbose($"[MSG-BUS] Processing message {messageId} of type {messageType}");
         try
@@ -274,7 +275,8 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
                         Timestamp = DateTime.UtcNow
                     });
 
-                    return result.ShouldRetry;
+                    // Retryable → requeue (capped by redelivery in the consumer); otherwise dead-letter.
+                    return result.ShouldRetry ? MessageConsumeResult.Requeue : MessageConsumeResult.Reject;
                 }
 
                 MessageProcessed?.Invoke(this, new MessageProcessedEventArgs
@@ -287,13 +289,58 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
                 });
             }
 
+            // Directly-registered handlers (via RegisterHandler). HartsyStorage and HartsySeeder wire their
+            // handlers this way instead of DI AddMessageHandler, so they MUST be dispatched here too —
+            // otherwise those services silently consume and drop every message (handler never runs).
+            Type? directType = _directHandlers.Keys.FirstOrDefault(t => t.Name == messageType);
+            if (directType != null && _directHandlers.TryGetValue(directType, out List<object>? directList) && directList.Count > 0)
+            {
+                Type envelopeType = typeof(GenericMessageEnvelope<>).MakeGenericType(directType);
+                object? envelopeObj = JsonMessageSerializer.Deserialize(body, envelopeType)
+                    ?? throw new InvalidOperationException($"Failed to deserialize envelope for {messageType}");
+
+                foreach (object handler in directList.ToList())
+                {
+                    anyHandler = true;
+                    _logger.Verbose($"[MSG-BUS] Invoking direct handler: {handler.GetType().Name}");
+
+                    System.Reflection.MethodInfo? handleMethod = handler.GetType().GetMethod("HandleAsync");
+                    if (handleMethod == null)
+                    {
+                        throw new InvalidOperationException($"Direct handler {handler.GetType().Name} missing HandleAsync");
+                    }
+
+                    Task<MessageHandlerResult> task = (Task<MessageHandlerResult>)handleMethod.Invoke(handler, new object?[] { envelopeObj, CancellationToken.None })!;
+                    MessageHandlerResult result = await task;
+
+                    if (!result.IsSuccess)
+                    {
+                        Interlocked.Increment(ref _processingErrors);
+                        MessageError?.Invoke(this, new MessageErrorEventArgs
+                        {
+                            MessageId = messageId,
+                            MessageType = messageType,
+                            ErrorMessage = result.ErrorMessage ?? "Handler failed",
+                            Exception = result.Exception,
+                            Timestamp = DateTime.UtcNow
+                        });
+                        return result.ShouldRetry ? MessageConsumeResult.Requeue : MessageConsumeResult.Reject;
+                    }
+
+                    MessageProcessed?.Invoke(this, new MessageProcessedEventArgs
+                    {
+                        MessageId = messageId,
+                        MessageType = messageType,
+                        HandlerType = handler.GetType().FullName ?? handler.GetType().Name,
+                        ProcessingTime = sw.Elapsed,
+                        Timestamp = DateTime.UtcNow
+                    });
+                }
+            }
+
             if (!anyHandler)
             {
-                List<object> direct = _directHandlers.Values.SelectMany(v => v).ToList();
-                if (direct.Count == 0)
-                {
-                    _logger.Warning($"No handlers registered for messageType '{messageType}'");
-                }
+                _logger.Warning($"No handlers registered for messageType '{messageType}'");
             }
 
             Interlocked.Increment(ref _messagesProcessed);
@@ -310,7 +357,7 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
                 }
             }
 
-            return true;
+            return MessageConsumeResult.Ack;
         }
         catch (Exception ex)
         {
@@ -327,7 +374,8 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
                 Timestamp = DateTime.UtcNow
             });
 
-            return false;
+            // Unhandled exception may be transient (broker/DB blip): requeue once, then dead-letter.
+            return MessageConsumeResult.Requeue;
         }
         finally
         {

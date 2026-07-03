@@ -20,14 +20,15 @@ public sealed class UploadTokenOptions
     /// <summary>Previous secret — accepted for validation only, not issuance. Enables zero-downtime rotation.</summary>
     public string? PreviousSecret { get; set; }
 
-    /// <summary>Token lifetime in minutes. Defaults to 60.</summary>
-    public int IssuerLifetimeMinutes { get; set; } = 60;
+    /// <summary>Token lifetime in minutes. Kept short to bound replay of a leaked token. Defaults to 15.</summary>
+    public int IssuerLifetimeMinutes { get; set; } = 15;
 
     /// <summary>JWT issuer. Must match on both sides.</summary>
     public string Issuer { get; set; } = "hartsy";
 
-    /// <summary>JWT audience. Must match on both sides.</summary>
-    public string Audience { get; set; } = "hawtsy";
+    /// <summary>JWT audience. Must match on both sides. Configure explicitly on both sides;
+    /// this default only exists so a missing config fails closed with an obvious mismatch.</summary>
+    public string Audience { get; set; } = "hartsystorage";
 
     /// <summary>Clock skew tolerated on validation, in seconds.</summary>
     public int ClockSkewSeconds { get; set; } = 60;
@@ -68,9 +69,10 @@ public sealed class HmacUploadTokenService : IUploadTokenService
         }
     }
 
-    // TODO: Harden token model — shorten IssuerLifetimeMinutes to ~15 (currently 60) and add a
-    // jti deny-list (Redis SET with TTL matching expiry) so a token can only be consumed once.
-    // Today: a leaked token is replayable until expiry within the bound uploadId.
+    // Lifetime shortened to 15 min (see IssuerLifetimeMinutes) to bound replay. Single-use enforcement
+    // still requires a shared jti deny-list (e.g. Redis SET keyed on Jti, TTL = token expiry) checked
+    // atomically at consume time; an in-memory set is insufficient once storage runs multiple replicas.
+    // Until then a leaked token is replayable within its 15-min window, but only against its bound uploadId.
     public string Issue(UploadTokenClaims claims)
     {
         DateTime now = DateTime.UtcNow;
