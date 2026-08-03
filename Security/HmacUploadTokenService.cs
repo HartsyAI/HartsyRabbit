@@ -45,6 +45,7 @@ public sealed class HmacUploadTokenService : IUploadTokenService
     public const string ClaimUploadId = "uid";
     public const string ClaimMediaType = "mt";
     public const string ClaimMaxBytes = "max";
+    public const string ClaimIsPrivate = "prv";
 
     public readonly UploadTokenOptions _options;
     public readonly JwtSecurityTokenHandler _handler = new() { MapInboundClaims = false };
@@ -69,10 +70,6 @@ public sealed class HmacUploadTokenService : IUploadTokenService
         }
     }
 
-    // Lifetime shortened to 15 min (see IssuerLifetimeMinutes) to bound replay. Single-use enforcement
-    // still requires a shared jti deny-list (e.g. Redis SET keyed on Jti, TTL = token expiry) checked
-    // atomically at consume time; an in-memory set is insufficient once storage runs multiple replicas.
-    // Until then a leaked token is replayable within its 15-min window, but only against its bound uploadId.
     public string Issue(UploadTokenClaims claims)
     {
         DateTime now = DateTime.UtcNow;
@@ -88,6 +85,7 @@ public sealed class HmacUploadTokenService : IUploadTokenService
                 new Claim(ClaimUploadId, claims.UploadId),
                 new Claim(ClaimMediaType, claims.MediaType.ToString()),
                 new Claim(ClaimMaxBytes, claims.MaxBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new Claim(ClaimIsPrivate, claims.IsPrivate ? "1" : "0"),
             },
             notBefore: now,
             expires: exp,
@@ -163,6 +161,8 @@ public sealed class HmacUploadTokenService : IUploadTokenService
                 UploadId = uploadId,
                 MediaType = mediaType,
                 MaxBytes = maxBytes,
+                // Absent reads as public, so tokens minted before this claim existed stay valid.
+                IsPrivate = principal.FindFirst(ClaimIsPrivate)?.Value == "1",
                 IssuedAt = jwt.ValidFrom,
                 ExpiresAt = jwt.ValidTo,
                 Jti = jti ?? string.Empty

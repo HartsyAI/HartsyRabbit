@@ -20,6 +20,11 @@ public sealed class UploadTokenClaims
     /// <summary>Maximum total bytes the upload is allowed to be (JWT `max`). Enforced on TUS create AND on every write.</summary>
     public required long MaxBytes { get; init; }
 
+    /// <summary>Store the object under the non-public `private/` key prefix (JWT `prv`). In the token
+    /// rather than TUS metadata because the browser supplies metadata, and a client that cleared this
+    /// would get its private image written to a CDN-servable key.</summary>
+    public bool IsPrivate { get; init; }
+
     /// <summary>Token issue time (JWT `iat`).</summary>
     public DateTimeOffset IssuedAt { get; init; }
 
