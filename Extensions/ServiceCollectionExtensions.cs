@@ -1,6 +1,7 @@
 using HartsyRabbit.Configuration;
 using HartsyRabbit.Core;
 using HartsyRabbit.Infrastructure;
+using HartsyRabbit.Hosting;
 using HartsyRabbit.Publishers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,8 @@ public static class ServiceCollectionExtensions
                 "hawtsy" => CrossSiteQueueTopology.HAWTSY,
                 "discordbot" => CrossSiteQueueTopology.DISCORD_BOT,
                 "discord" => CrossSiteQueueTopology.DISCORD_BOT,
+                "hartsystorage" => CrossSiteQueueTopology.HARTSY_STORAGE,
+                "hartsyseeder" => CrossSiteQueueTopology.HARTSY_SEEDER,
                 _ => CrossSiteQueueTopology.HARTSY
             };
 
@@ -129,6 +132,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITypeSafeMessagePublisher, TypeSafeMessagePublisher>();
         services.AddSingleton<MessageHandlerRegistrationService>();
 
+        return services;
+    }
+
+    /// <summary>Adds the shared resilient process lifecycle for the type-safe message bus.</summary>
+    public static IServiceCollection AddTypeSafeMessageBusHostedService(this IServiceCollection services)
+    {
+        services.AddHostedService<ResilientMessageBusHostedService>();
         return services;
     }
 

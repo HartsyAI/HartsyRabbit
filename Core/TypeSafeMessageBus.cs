@@ -90,26 +90,35 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         _configuration.Site.SiteName = siteName;
         _configuration.Validate();
 
-        await _connectionManager.StartAsync(cancellationToken);
-
-        // Only setup queues/exchanges if we're managing our own infrastructure
-        if (!_configuration.Site.SkipQueueSetup)
+        try
         {
-            _logger.Info($"Setting up RabbitMQ infrastructure for '{siteName}'...");
-            await _queueSetup.SetupInfrastructureAsync(cancellationToken);
-        }
-        else
-        {
-            _logger.Info($"Skipping queue setup - using existing RabbitMQ infrastructure");
-        }
+            await _connectionManager.StartAsync(cancellationToken);
 
-        foreach (string queue in GetQueuesToConsume(siteName))
-        {
-            await _connectionManager.StartConsumingAsync(queue, HandleIncomingMessageAsync, cancellationToken);
-        }
+            // Only setup queues/exchanges if we're managing our own infrastructure
+            if (!_configuration.Site.SkipQueueSetup)
+            {
+                _logger.Info($"Setting up RabbitMQ infrastructure for '{siteName}'...");
+                await _queueSetup.SetupInfrastructureAsync(cancellationToken);
+            }
+            else
+            {
+                _logger.Info($"Skipping queue setup - using existing RabbitMQ infrastructure");
+            }
 
-        _started = true;
-        _logger.Info($"TypeSafeMessageBus started for site '{siteName}'");
+            foreach (string queue in GetQueuesToConsume(siteName))
+            {
+                await _connectionManager.StartConsumingAsync(queue, HandleIncomingMessageAsync, cancellationToken);
+            }
+
+            _started = true;
+            _logger.Info($"TypeSafeMessageBus started for site '{siteName}'");
+        }
+        catch
+        {
+            _started = false;
+            await _connectionManager.StopAsync(CancellationToken.None);
+            throw;
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
