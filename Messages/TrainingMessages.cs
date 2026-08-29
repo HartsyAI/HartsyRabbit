@@ -110,4 +110,10 @@ public sealed record TrainingModelUploadMessage : TrainingMessageBase
 
     /// <summary>Estimated file size in bytes (if known from backend)</summary>
     public long? FileSizeBytes { get; init; }
+
+    public string ArtifactKind { get; init; } = "weights";
+
+    public string? ContentType { get; init; }
+
+    public DateTime? RetainUntil { get; init; }
 }

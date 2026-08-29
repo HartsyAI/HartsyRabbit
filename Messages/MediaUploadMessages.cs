@@ -7,14 +7,15 @@ namespace HartsyRabbit.Messages;
 /// </summary>
 public enum MediaType
 {
-    Model,
-    Image,
-    Video,
-    Dataset,
-    Audio,
-    Model3D,
-    Document,
-    Other
+    Model = 0,
+    Image = 1,
+    Video = 2,
+    Dataset = 3,
+    Audio = 4,
+    Model3D = 5,
+    Document = 6,
+    Other = 7,
+    TrainingArtifact = 8
 }
 
 /// <summary>
