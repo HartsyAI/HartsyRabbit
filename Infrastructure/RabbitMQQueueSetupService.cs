@@ -95,4 +95,42 @@ public sealed class RabbitMQQueueSetupService : IRabbitMQQueueSetupService
             throw;
         }
     }
+
+    /// <summary>Declares one queue and binds it to zero or more (exchange, routingKey) pairs. Not gated
+    /// by the one-time <see cref="_isSetup"/> latch — safe (and required) to call on every StartAsync
+    /// / reconnect, e.g. for a per-instance auto-delete queue the broker forgets on disconnect. Also
+    /// idempotently declares each binding's exchange first, so it works even when this site runs with
+    /// SkipQueueSetup=true and no other service has run the shared static setup yet.</summary>
+    public async Task DeclareAndBindQueueAsync(QueueDefinition queue, IEnumerable<QueueBinding> bindings, CancellationToken cancellationToken = default)
+    {
+        if (queue == null) throw new ArgumentNullException(nameof(queue));
+
+        IChannel channel = await _connectionManager.GetPublishChannelAsync(cancellationToken);
+
+        await DeclareQueueAsync(channel, queue, cancellationToken);
+
+        List<ExchangeDefinition> knownExchanges = CrossSiteQueueTopology.GetAllExchangeDefinitions();
+
+        foreach (QueueBinding binding in bindings)
+        {
+            ExchangeDefinition? exchangeDef = knownExchanges.FirstOrDefault(e => e.Name == binding.ExchangeName);
+            if (exchangeDef != null)
+            {
+                await channel.ExchangeDeclareAsync(
+                    exchange: exchangeDef.Name,
+                    type: exchangeDef.Type,
+                    durable: exchangeDef.Durable,
+                    autoDelete: exchangeDef.AutoDelete,
+                    arguments: exchangeDef.Arguments,
+                    cancellationToken: cancellationToken);
+            }
+
+            await channel.QueueBindAsync(
+                queue: binding.QueueName,
+                exchange: binding.ExchangeName,
+                routingKey: binding.RoutingKey,
+                arguments: null,
+                cancellationToken: cancellationToken);
+        }
+    }
 }

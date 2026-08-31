@@ -105,7 +105,13 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
                 _logger.Info($"Skipping queue setup - using existing RabbitMQ infrastructure");
             }
 
-            foreach (string queue in GetQueuesToConsume(siteName))
+            // Unconditional (runs even with SkipQueueSetup=true, e.g. Hawtsy) and re-run on every
+            // reconnect: the static setup above is latched to run once and can't express "one
+            // auto-delete queue per running instance", so this site's training-events queue is
+            // declared+bound here instead of via GetAllQueueDefinitions/GetAllQueueBindings.
+            string? trainingQueueName = await DeclareTrainingQueueForSiteAsync(siteName, cancellationToken);
+
+            foreach (string queue in GetQueuesToConsume(siteName, trainingQueueName))
             {
                 await _connectionManager.StartConsumingAsync(queue, HandleIncomingMessageAsync, cancellationToken);
             }
@@ -185,7 +191,7 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         };
     }
 
-    private IEnumerable<string> GetQueuesToConsume(string siteName)
+    private IEnumerable<string> GetQueuesToConsume(string siteName, string? trainingQueueName)
     {
         List<string> queues = new List<string>
         {
@@ -193,9 +199,13 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
             CrossSiteQueueTopology.MEDIA_EVENTS_QUEUE,
             CrossSiteQueueTopology.USER_INTERACTION_EVENTS_QUEUE,
             CrossSiteQueueTopology.SYSTEM_EVENTS_QUEUE,
-            CrossSiteQueueTopology.TRAINING_EVENTS_QUEUE,
             CrossSiteQueueTopology.GetInboxQueueForSite(siteName)
         };
+
+        if (!string.IsNullOrWhiteSpace(trainingQueueName))
+        {
+            queues.Add(trainingQueueName);
+        }
 
         if (_configuration.Site.ProcessBroadcastMessages)
         {
@@ -203,6 +213,63 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
         }
 
         return queues.Distinct(StringComparer.Ordinal);
+    }
+
+    /// <summary>Declares (and binds) this site's own training-events queue, per the site's routing-key
+    /// map, and returns its name — or null if the site doesn't consume training events at all. Two queue
+    /// shapes: Hawtsy gets one durable named queue shared across its instances (competing consumers is
+    /// fine there — it does simple fan-in work); HartsyWeb gets one auto-delete queue per running
+    /// instance (non-exclusive, x-expires-backed) so every instance sees every training event addressed
+    /// to it, matching the pre-existing broadcast-based behavior.</summary>
+    private async Task<string?> DeclareTrainingQueueForSiteAsync(string siteName, CancellationToken cancellationToken)
+    {
+        string[] routingKeys = CrossSiteQueueTopology.GetTrainingRoutingKeysForSite(siteName);
+        if (routingKeys.Length == 0)
+        {
+            return null;
+        }
+
+        string queueName;
+        Dictionary<string, object?> arguments = CrossSiteQueueTopology.GetTrainingQueueArguments(_configuration);
+        QueueDefinition queueDefinition;
+
+        if (siteName == CrossSiteQueueTopology.HAWTSY)
+        {
+            queueName = CrossSiteQueueTopology.HAWTSY_TRAINING_EVENTS_QUEUE;
+            queueDefinition = new QueueDefinition
+            {
+                Name = queueName,
+                Durable = true,
+                Exclusive = false,
+                AutoDelete = false,
+                Arguments = arguments
+            };
+        }
+        else
+        {
+            // One auto-delete queue per running instance. Non-exclusive (NOT exclusive=true — that pins
+            // the queue to the declaring connection and would deadlock against
+            // RabbitMQConnectionLifecycleManager's automatic reconnect, which opens a new connection).
+            // x-expires makes an orphaned queue (instance hard-killed before it could clean up) self-reap.
+            queueName = $"{CrossSiteQueueTopology.HARTSY_TRAINING_EVENTS_QUEUE_PREFIX}.{Environment.MachineName}";
+            arguments["x-expires"] = 10 * 60 * 1000;
+            queueDefinition = new QueueDefinition
+            {
+                Name = queueName,
+                Durable = false,
+                Exclusive = false,
+                AutoDelete = true,
+                Arguments = arguments
+            };
+        }
+
+        List<QueueBinding> bindings = routingKeys
+            .Select(key => new QueueBinding(CrossSiteQueueTopology.TRAINING_EVENTS_EXCHANGE, queueName, key))
+            .ToList();
+
+        await _queueSetup.DeclareAndBindQueueAsync(queueDefinition, bindings, cancellationToken);
+
+        return queueName;
     }
 
     private async Task<MessageConsumeResult> HandleIncomingMessageAsync(string body, Dictionary<string, object?> headers)

@@ -118,6 +118,16 @@ public sealed class TypeSafeMessagePublisher : ITypeSafeMessagePublisher, IDispo
 
     private MessageRoutingInfo DetermineRouting<TMessage>(GenericMessageEnvelope<TMessage> envelope) where TMessage : class
     {
+        // Training-lifecycle events route by message TYPE onto the training topic exchange, regardless
+        // of TargetSites — delivery to the right sites is governed entirely by which sites bound their
+        // queue to which routing key (see CrossSiteQueueTopology.GetTrainingRoutingKeysForSite).
+        // TrainingModelUploadMessage is deliberately excluded from this map: it stays point-to-point via
+        // the TargetSites branches below (published with TargetSites="HartsyStorage" today).
+        if (CrossSiteQueueTopology.TryGetTrainingRoutingKey(envelope.MessageType, out string trainingRoutingKey))
+        {
+            return new MessageRoutingInfo { Exchange = CrossSiteQueueTopology.TRAINING_EVENTS_EXCHANGE, RoutingKey = trainingRoutingKey, IsBroadcast = false };
+        }
+
         if (envelope.TargetSites == "*")
         {
             return new MessageRoutingInfo { Exchange = CrossSiteQueueTopology.BROADCAST_EXCHANGE, RoutingKey = "", IsBroadcast = true };
