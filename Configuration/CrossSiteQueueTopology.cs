@@ -1,3 +1,5 @@
+using HartsyRabbit.Messages;
+
 namespace HartsyRabbit.Configuration;
 
 public static class CrossSiteQueueTopology
@@ -19,7 +21,6 @@ public static class CrossSiteQueueTopology
     public const string MEDIA_EVENTS_QUEUE = "media.events";
     public const string USER_INTERACTION_EVENTS_QUEUE = "user.interaction.events";
     public const string SYSTEM_EVENTS_QUEUE = "system.events";
-    public const string TRAINING_EVENTS_QUEUE = "training.events";
 
     public const string HARTSY_INBOX_QUEUE = "hartsy.inbox";
     public const string HAWTSY_INBOX_QUEUE = "hawtsy.inbox";
@@ -54,6 +55,66 @@ public static class CrossSiteQueueTopology
     public const string TRAINING_FAILED_ROUTING_KEY = "training.failed";
     public const string TRAINING_TEST_IMAGE_ROUTING_KEY = "training.testimage";
     public const string TRAINING_MODEL_READY_ROUTING_KEY = "training.modelready";
+
+    public const string HAWTSY_TRAINING_EVENTS_QUEUE = "training.events.hawtsy";
+    public const string HARTSY_TRAINING_EVENTS_QUEUE_PREFIX = "training.events.hartsy";
+
+    /// <summary>Maps each training-lifecycle message type to its topic-exchange routing key. This is
+    /// the single source of truth used both by the publisher (to route these six message types onto
+    /// TRAINING_EVENTS_EXCHANGE by type, bypassing TargetSites) and by GetRoutingKeyForMessageType's
+    /// fallback. TrainingModelUploadMessage deliberately does NOT appear here — it stays point-to-point
+    /// via SITE_ROUTING_EXCHANGE/TargetSites="HartsyStorage", unrelated to this topic-exchange scheme.</summary>
+    private static readonly Dictionary<string, string> TrainingMessageTypeRoutingKeys = new(StringComparer.Ordinal)
+    {
+        [nameof(TrainingStartedMessage)] = TRAINING_STARTED_ROUTING_KEY,
+        [nameof(TrainingProgressMessage)] = TRAINING_PROGRESS_ROUTING_KEY,
+        [nameof(TrainingCompletedMessage)] = TRAINING_COMPLETED_ROUTING_KEY,
+        [nameof(TrainingFailedMessage)] = TRAINING_FAILED_ROUTING_KEY,
+        [nameof(TrainingTestImageMessage)] = TRAINING_TEST_IMAGE_ROUTING_KEY,
+        [nameof(TrainingModelReadyMessage)] = TRAINING_MODEL_READY_ROUTING_KEY
+    };
+
+    /// <summary>Looks up the topic-exchange routing key for one of the six training-lifecycle message
+    /// types. Returns false for anything else, including TrainingModelUploadMessage.</summary>
+    public static bool TryGetTrainingRoutingKey(string messageType, out string routingKey)
+    {
+        if (string.IsNullOrWhiteSpace(messageType))
+        {
+            routingKey = string.Empty;
+            return false;
+        }
+
+        return TrainingMessageTypeRoutingKeys.TryGetValue(messageType, out routingKey!);
+    }
+
+    /// <summary>Which training-event routing keys a site should bind its own queue to. Empty means the
+    /// site doesn't consume training events at all (its training-adjacent traffic, e.g.
+    /// TrainingModelUploadMessage, flows over SITE_ROUTING_EXCHANGE instead and is untouched by this).</summary>
+    public static string[] GetTrainingRoutingKeysForSite(string siteName)
+    {
+        return siteName switch
+        {
+            HARTSY => new[]
+            {
+                TRAINING_STARTED_ROUTING_KEY,
+                TRAINING_PROGRESS_ROUTING_KEY,
+                TRAINING_COMPLETED_ROUTING_KEY,
+                TRAINING_FAILED_ROUTING_KEY,
+                TRAINING_TEST_IMAGE_ROUTING_KEY,
+                TRAINING_MODEL_READY_ROUTING_KEY
+            },
+            HAWTSY => new[]
+            {
+                TRAINING_PROGRESS_ROUTING_KEY,
+                TRAINING_COMPLETED_ROUTING_KEY,
+                TRAINING_TEST_IMAGE_ROUTING_KEY
+            },
+            DISCORD_BOT => Array.Empty<string>(),
+            HARTSY_STORAGE => Array.Empty<string>(),
+            HARTSY_SEEDER => Array.Empty<string>(),
+            _ => throw new ArgumentException($"Unknown site name '{siteName}'", nameof(siteName))
+        };
+    }
 
     public const string HARTSY_ROUTING_KEY = "hartsy";
     public const string HAWTSY_ROUTING_KEY = "hawtsy";
@@ -107,13 +168,14 @@ public static class CrossSiteQueueTopology
             return SYSTEM_HEALTH_ROUTING_KEY;
         }
 
-        string lower = messageType.ToLowerInvariant();
-
-        // Training events
-        if (lower.Contains("training"))
+        // Training lifecycle events (exact type match — see TryGetTrainingRoutingKey). Deliberately
+        // NOT a substring match: TrainingModelUploadMessage must never be caught here.
+        if (TryGetTrainingRoutingKey(messageType, out string trainingKey))
         {
-            return TRAINING_PROGRESS_ROUTING_KEY;
+            return trainingKey;
         }
+
+        string lower = messageType.ToLowerInvariant();
 
         // Generic media upload messages (new system)
         if (lower.Contains("mediauploadstarted"))
@@ -247,7 +309,6 @@ public static class CrossSiteQueueTopology
             new QueueDefinition { Name = MEDIA_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = USER_INTERACTION_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = SYSTEM_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetPriorityQueueArguments(config) },
-            new QueueDefinition { Name = TRAINING_EVENTS_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetTrainingQueueArguments(config) },
             new QueueDefinition { Name = HARTSY_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = HAWTSY_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
             new QueueDefinition { Name = DISCORD_BOT_INBOX_QUEUE, Durable = config.Queues.DurableQueues, Exclusive = false, AutoDelete = false, Arguments = GetStandardQueueArguments(config) },
@@ -283,14 +344,6 @@ public static class CrossSiteQueueTopology
             // Other domain events
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, USER_INTERACTION_EVENTS_QUEUE, USER_INTERACTION_ROUTING_KEY),
             new QueueBinding(DOMAIN_EVENTS_EXCHANGE, SYSTEM_EVENTS_QUEUE, SYSTEM_HEALTH_ROUTING_KEY),
-
-            // Training events
-            new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_STARTED_ROUTING_KEY),
-            new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_PROGRESS_ROUTING_KEY),
-            new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_COMPLETED_ROUTING_KEY),
-            new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_FAILED_ROUTING_KEY),
-            new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_TEST_IMAGE_ROUTING_KEY),
-            new QueueBinding(TRAINING_EVENTS_EXCHANGE, TRAINING_EVENTS_QUEUE, TRAINING_MODEL_READY_ROUTING_KEY),
 
             // Site-specific routing
             new QueueBinding(SITE_ROUTING_EXCHANGE, HARTSY_INBOX_QUEUE, HARTSY_ROUTING_KEY),
