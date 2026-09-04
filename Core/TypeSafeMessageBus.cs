@@ -251,12 +251,21 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
             // the queue to the declaring connection and would deadlock against
             // RabbitMQConnectionLifecycleManager's automatic reconnect, which opens a new connection).
             // x-expires makes an orphaned queue (instance hard-killed before it could clean up) self-reap.
+            //
+            // Durable despite being an ephemeral per-instance queue. RabbitMQ 4 denies the
+            // transient + non-exclusive combination outright (the transient_nonexcl_queues
+            // deprecated feature, state "denied" on 4.3.2), so declaring it transient failed with
+            // a 541 INTERNAL_ERROR, took the whole message bus down with it, and left the site
+            // retrying the declaration every 30 seconds forever. Exclusive is not the way out, per
+            // the note above. Durable only means the definition survives a broker restart; the
+            // queue is still removed by auto-delete when the last consumer goes away, and still
+            // self-reaps via x-expires if the instance dies, so the shape is unchanged.
             queueName = $"{CrossSiteQueueTopology.HARTSY_TRAINING_EVENTS_QUEUE_PREFIX}.{Environment.MachineName}";
             arguments["x-expires"] = 10 * 60 * 1000;
             queueDefinition = new QueueDefinition
             {
                 Name = queueName,
-                Durable = false,
+                Durable = true,
                 Exclusive = false,
                 AutoDelete = true,
                 Arguments = arguments
