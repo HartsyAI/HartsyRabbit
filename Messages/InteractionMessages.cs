@@ -495,6 +495,258 @@ public class UserFavoritedCommunityPostMessage : IUserInteractionMessage
     }
 }
 
+/// <summary>Message published when a user likes a dataset. Cross-site notification for user interaction tracking.</summary>
+public class UserLikedDatasetMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DatasetId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "DatasetLiked";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserLikedDatasetMessage CreateLike(string userId, string datasetId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedLikeCount = null, Dictionary<string, object>? metadata = null)
+        => Build("DatasetLiked", userId, datasetId, sourceSite, username, interactionContext, "expectedLikeCount", expectedLikeCount, metadata);
+
+    public static UserLikedDatasetMessage CreateUnlike(string userId, string datasetId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedLikeCount = null, Dictionary<string, object>? metadata = null)
+        => Build("DatasetUnliked", userId, datasetId, sourceSite, username, interactionContext, "expectedLikeCount", expectedLikeCount, metadata);
+
+    static UserLikedDatasetMessage Build(string interactionType, string userId, string datasetId, string sourceSite, string? username, string? interactionContext, string countKey, long? expectedCount, Dictionary<string, object>? metadata)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedCount.HasValue)
+        {
+            finalMetadata[countKey] = expectedCount.Value;
+        }
+        return new UserLikedDatasetMessage
+        {
+            UserId = userId,
+            DatasetId = datasetId,
+            InteractionType = interactionType,
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
+/// <summary>Message published when a user favorites a dataset. Cross-site notification for user interaction tracking.</summary>
+public class UserFavoritedDatasetMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DatasetId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "DatasetFavorited";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserFavoritedDatasetMessage CreateFavorite(string userId, string datasetId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+        => Build("DatasetFavorited", userId, datasetId, sourceSite, username, interactionContext, "expectedFavoriteCount", expectedFavoriteCount, metadata);
+
+    public static UserFavoritedDatasetMessage CreateUnfavorite(string userId, string datasetId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+        => Build("DatasetUnfavorited", userId, datasetId, sourceSite, username, interactionContext, "expectedFavoriteCount", expectedFavoriteCount, metadata);
+
+    static UserFavoritedDatasetMessage Build(string interactionType, string userId, string datasetId, string sourceSite, string? username, string? interactionContext, string countKey, long? expectedCount, Dictionary<string, object>? metadata)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedCount.HasValue)
+        {
+            finalMetadata[countKey] = expectedCount.Value;
+        }
+        return new UserFavoritedDatasetMessage
+        {
+            UserId = userId,
+            DatasetId = datasetId,
+            InteractionType = interactionType,
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
+/// <summary>Message published when a user likes a workflow. Cross-site notification for user interaction tracking.</summary>
+public class UserLikedWorkflowMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string WorkflowId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "WorkflowLiked";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserLikedWorkflowMessage CreateLike(string userId, string workflowId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedLikeCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WorkflowLiked", userId, workflowId, sourceSite, username, interactionContext, "expectedLikeCount", expectedLikeCount, metadata);
+
+    public static UserLikedWorkflowMessage CreateUnlike(string userId, string workflowId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedLikeCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WorkflowUnliked", userId, workflowId, sourceSite, username, interactionContext, "expectedLikeCount", expectedLikeCount, metadata);
+
+    static UserLikedWorkflowMessage Build(string interactionType, string userId, string workflowId, string sourceSite, string? username, string? interactionContext, string countKey, long? expectedCount, Dictionary<string, object>? metadata)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedCount.HasValue)
+        {
+            finalMetadata[countKey] = expectedCount.Value;
+        }
+        return new UserLikedWorkflowMessage
+        {
+            UserId = userId,
+            WorkflowId = workflowId,
+            InteractionType = interactionType,
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
+/// <summary>Message published when a user favorites a workflow. Cross-site notification for user interaction tracking.</summary>
+public class UserFavoritedWorkflowMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string WorkflowId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "WorkflowFavorited";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserFavoritedWorkflowMessage CreateFavorite(string userId, string workflowId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WorkflowFavorited", userId, workflowId, sourceSite, username, interactionContext, "expectedFavoriteCount", expectedFavoriteCount, metadata);
+
+    public static UserFavoritedWorkflowMessage CreateUnfavorite(string userId, string workflowId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WorkflowUnfavorited", userId, workflowId, sourceSite, username, interactionContext, "expectedFavoriteCount", expectedFavoriteCount, metadata);
+
+    static UserFavoritedWorkflowMessage Build(string interactionType, string userId, string workflowId, string sourceSite, string? username, string? interactionContext, string countKey, long? expectedCount, Dictionary<string, object>? metadata)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedCount.HasValue)
+        {
+            finalMetadata[countKey] = expectedCount.Value;
+        }
+        return new UserFavoritedWorkflowMessage
+        {
+            UserId = userId,
+            WorkflowId = workflowId,
+            InteractionType = interactionType,
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
+/// <summary>Message published when a user likes a wildcard. Cross-site notification for user interaction tracking.</summary>
+public class UserLikedWildcardMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string WildcardId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "WildcardLiked";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserLikedWildcardMessage CreateLike(string userId, string wildcardId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedLikeCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WildcardLiked", userId, wildcardId, sourceSite, username, interactionContext, "expectedLikeCount", expectedLikeCount, metadata);
+
+    public static UserLikedWildcardMessage CreateUnlike(string userId, string wildcardId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedLikeCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WildcardUnliked", userId, wildcardId, sourceSite, username, interactionContext, "expectedLikeCount", expectedLikeCount, metadata);
+
+    static UserLikedWildcardMessage Build(string interactionType, string userId, string wildcardId, string sourceSite, string? username, string? interactionContext, string countKey, long? expectedCount, Dictionary<string, object>? metadata)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedCount.HasValue)
+        {
+            finalMetadata[countKey] = expectedCount.Value;
+        }
+        return new UserLikedWildcardMessage
+        {
+            UserId = userId,
+            WildcardId = wildcardId,
+            InteractionType = interactionType,
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
+/// <summary>Message published when a user favorites a wildcard. Cross-site notification for user interaction tracking.</summary>
+public class UserFavoritedWildcardMessage : IUserInteractionMessage
+{
+    public string UserId { get; set; } = string.Empty;
+    public string WildcardId { get; set; } = string.Empty;
+    public string InteractionType { get; set; } = "WildcardFavorited";
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    public static UserFavoritedWildcardMessage CreateFavorite(string userId, string wildcardId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WildcardFavorited", userId, wildcardId, sourceSite, username, interactionContext, "expectedFavoriteCount", expectedFavoriteCount, metadata);
+
+    public static UserFavoritedWildcardMessage CreateUnfavorite(string userId, string wildcardId, string sourceSite, string? username = null, string? interactionContext = null, long? expectedFavoriteCount = null, Dictionary<string, object>? metadata = null)
+        => Build("WildcardUnfavorited", userId, wildcardId, sourceSite, username, interactionContext, "expectedFavoriteCount", expectedFavoriteCount, metadata);
+
+    static UserFavoritedWildcardMessage Build(string interactionType, string userId, string wildcardId, string sourceSite, string? username, string? interactionContext, string countKey, long? expectedCount, Dictionary<string, object>? metadata)
+    {
+        Dictionary<string, object> finalMetadata = metadata ?? new Dictionary<string, object>();
+        finalMetadata["sourceSite"] = sourceSite;
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            finalMetadata["username"] = username;
+        }
+        if (!string.IsNullOrWhiteSpace(interactionContext))
+        {
+            finalMetadata["interactionContext"] = interactionContext;
+        }
+        if (expectedCount.HasValue)
+        {
+            finalMetadata[countKey] = expectedCount.Value;
+        }
+        return new UserFavoritedWildcardMessage
+        {
+            UserId = userId,
+            WildcardId = wildcardId,
+            InteractionType = interactionType,
+            Timestamp = DateTime.UtcNow,
+            Metadata = finalMetadata
+        };
+    }
+}
+
 /// <summary>Message published when a user downloads content (model, preset, etc). Cross-site notification for analytics and user interaction tracking.</summary>
 public class UserDownloadedContentMessage : IUserInteractionMessage
 {
