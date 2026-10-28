@@ -403,8 +403,9 @@ public record TorrentRequestedMessage : IMediaUploadMessage
 /// member from blob storage to <c>{pack_name}/{relative_path}</c>, runs mktorrent on that folder, starts
 /// seeding, and replies with a <see cref="TorrentReadyMessage"/> carrying the same <see cref="UploadId"/>.
 /// A request with a new <see cref="Fingerprint"/> makes the seeder stop the superseded torrent itself before it
-/// rebuilds. Removal reuses <see cref="TorrentRemoveRequestedMessage"/> with the pack's upload id: naming an older
-/// pack infohash only stops that torrent, while naming the current one, or none, removes the pack and its files.
+/// rebuilds, so never send a removal for a superseded pack infohash. Removal reuses
+/// <see cref="TorrentRemoveRequestedMessage"/> with the pack's upload id and always removes the pack: the seeder stops
+/// the named torrent and the one it currently seeds, and deletes the files when <c>delete_files</c> is set.
 /// </summary>
 public record PackTorrentRequestedMessage : IMediaUploadMessage
 {
