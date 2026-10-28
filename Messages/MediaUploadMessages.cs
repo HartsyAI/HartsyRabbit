@@ -436,7 +436,10 @@ public record PackTorrentRequestedMessage : IMediaUploadMessage
     [JsonPropertyName("web_seed_base_url")]
     public required string WebSeedBaseUrl { get; init; }
 
-    /// <summary>Opaque to the seeder. A request whose fingerprint matches the seeded one is a replay; a different one rebuilds.</summary>
+    /// <summary>
+    /// Opaque to the seeder and echoed in <see cref="TorrentReadyMessage.Fingerprint"/>. A request whose fingerprint
+    /// matches the seeded one is a replay; a different one rebuilds.
+    /// </summary>
     [JsonPropertyName("fingerprint")]
     public required string Fingerprint { get; init; }
 
@@ -510,12 +513,20 @@ public record TorrentReadyMessage : IMediaUploadMessage
     [JsonPropertyName("torrent_info")]
     public TorrentInfoPayload? TorrentInfo { get; init; }
 
+    /// <summary>
+    /// For a pack, the <see cref="PackTorrentRequestedMessage.Fingerprint"/> of the layout this reply describes, so a
+    /// reply to an older request is never stored as the newer layout. Null for a single-file torrent.
+    /// </summary>
+    [JsonPropertyName("fingerprint")]
+    public string? Fingerprint { get; init; }
+
     public static TorrentReadyMessage CreateSuccess(
         string uploadId,
         MediaType mediaType,
         string userId,
         string sourceSite,
-        TorrentInfoPayload torrentInfo)
+        TorrentInfoPayload torrentInfo,
+        string? fingerprint = null)
     {
         return new TorrentReadyMessage
         {
@@ -524,7 +535,8 @@ public record TorrentReadyMessage : IMediaUploadMessage
             UserId = userId,
             SourceSite = sourceSite,
             Success = true,
-            TorrentInfo = torrentInfo
+            TorrentInfo = torrentInfo,
+            Fingerprint = fingerprint
         };
     }
 
@@ -533,7 +545,8 @@ public record TorrentReadyMessage : IMediaUploadMessage
         MediaType mediaType,
         string userId,
         string sourceSite,
-        string errorMessage)
+        string errorMessage,
+        string? fingerprint = null)
     {
         return new TorrentReadyMessage
         {
@@ -542,7 +555,8 @@ public record TorrentReadyMessage : IMediaUploadMessage
             UserId = userId,
             SourceSite = sourceSite,
             Success = false,
-            ErrorMessage = errorMessage
+            ErrorMessage = errorMessage,
+            Fingerprint = fingerprint
         };
     }
 }
