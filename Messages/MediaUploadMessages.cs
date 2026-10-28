@@ -398,6 +398,85 @@ public record TorrentRequestedMessage : IMediaUploadMessage
 }
 
 /// <summary>
+/// Sent by HartsyWeb to request a multi-file torrent of a model pack: the main weights plus its linked
+/// component models and sidecar files, each at a relative path inside one top folder. The seeder pulls every
+/// member from blob storage to <c>{pack_name}/{relative_path}</c>, runs mktorrent on that folder, starts
+/// seeding, and replies with a <see cref="TorrentReadyMessage"/> carrying the same <see cref="UploadId"/>.
+/// Removal reuses <see cref="TorrentRemoveRequestedMessage"/>.
+/// </summary>
+public record PackTorrentRequestedMessage : IMediaUploadMessage
+{
+    /// <summary>Always <c>{modelGuid}-pack</c>, so the reply and removal never collide with the model's single-file torrent.</summary>
+    [JsonPropertyName("upload_id")]
+    public required string UploadId { get; init; }
+
+    [JsonPropertyName("media_type")]
+    public required MediaType MediaType { get; init; }
+
+    [JsonPropertyName("user_id")]
+    public required string UserId { get; init; }
+
+    [JsonPropertyName("source_site")]
+    public string SourceSite { get; init; } = string.Empty;
+
+    [JsonPropertyName("timestamp")]
+    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+
+    /// <summary>The top folder name inside the torrent.</summary>
+    [JsonPropertyName("pack_name")]
+    public required string PackName { get; init; }
+
+    [JsonPropertyName("members")]
+    public required List<PackTorrentMember> Members { get; init; }
+
+    /// <summary>Ends in <c>/</c>. Clients fetch <c>{web_seed_base_url}{pack_name}/{relative_path}</c>.</summary>
+    [JsonPropertyName("web_seed_base_url")]
+    public required string WebSeedBaseUrl { get; init; }
+
+    /// <summary>Opaque to the seeder. A request whose fingerprint matches the seeded one is a replay; a different one rebuilds.</summary>
+    [JsonPropertyName("fingerprint")]
+    public required string Fingerprint { get; init; }
+
+    public static PackTorrentRequestedMessage Create(
+        string uploadId,
+        MediaType mediaType,
+        string userId,
+        string sourceSite,
+        string packName,
+        List<PackTorrentMember> members,
+        string webSeedBaseUrl,
+        string fingerprint)
+    {
+        return new PackTorrentRequestedMessage
+        {
+            UploadId = uploadId,
+            MediaType = mediaType,
+            UserId = userId,
+            SourceSite = sourceSite,
+            PackName = packName,
+            Members = members,
+            WebSeedBaseUrl = webSeedBaseUrl,
+            Fingerprint = fingerprint
+        };
+    }
+}
+
+/// <summary>One file of a <see cref="PackTorrentRequestedMessage"/>.</summary>
+public record PackTorrentMember
+{
+    /// <summary>Blob-store object key the seeder fetches to obtain the file bytes.</summary>
+    [JsonPropertyName("object_key")]
+    public required string ObjectKey { get; init; }
+
+    /// <summary>Path inside the pack folder: forward slashes, never absolute, no <c>.</c> or <c>..</c> segments, ends in the file name.</summary>
+    [JsonPropertyName("relative_path")]
+    public required string RelativePath { get; init; }
+
+    [JsonPropertyName("file_size_bytes")]
+    public long FileSizeBytes { get; init; }
+}
+
+/// <summary>
 /// Sent by the seeder after a torrent has been created and seeding has started (or failed).
 /// Best-effort: a failure here never invalidates the upload. Consumers patch the existing media
 /// row's torrent info from <see cref="TorrentInfo"/> when <see cref="Success"/> is true.
