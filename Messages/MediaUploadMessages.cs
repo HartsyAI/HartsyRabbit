@@ -402,7 +402,9 @@ public record TorrentRequestedMessage : IMediaUploadMessage
 /// component models and sidecar files, each at a relative path inside one top folder. The seeder pulls every
 /// member from blob storage to <c>{pack_name}/{relative_path}</c>, runs mktorrent on that folder, starts
 /// seeding, and replies with a <see cref="TorrentReadyMessage"/> carrying the same <see cref="UploadId"/>.
-/// Removal reuses <see cref="TorrentRemoveRequestedMessage"/>.
+/// A request with a new <see cref="Fingerprint"/> makes the seeder stop the superseded torrent itself before it
+/// rebuilds. Removal reuses <see cref="TorrentRemoveRequestedMessage"/> with the pack's upload id: naming an older
+/// pack infohash only stops that torrent, while naming the current one, or none, removes the pack and its files.
 /// </summary>
 public record PackTorrentRequestedMessage : IMediaUploadMessage
 {
