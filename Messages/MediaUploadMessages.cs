@@ -601,3 +601,31 @@ public record TorrentRemoveRequestedMessage : IMediaUploadMessage
             DeleteFiles = deleteFiles
         };
 }
+
+/// <summary>
+/// Sent by the seeder to HartsyWeb at startup and then on a timer: every pack folder (<c>{modelGuid}-pack</c>) found
+/// directly under its seed directory at <see cref="ReportedAt"/>. The list is complete, so an empty list means the
+/// seeder holds no packs; a seeder that cannot find its seed directory sends nothing. A folder that no model row
+/// accounts for is an orphan, for example one whose removal failed, and HartsyWeb withdraws it with a
+/// <see cref="TorrentRemoveRequestedMessage"/> naming the folder as the upload id. Single-file seeds are never listed.
+/// </summary>
+public record SeedInventoryReportedMessage
+{
+    [JsonPropertyName("seeder_site")]
+    public required string SeederSite { get; init; }
+
+    /// <summary>Folder names only, never paths. Each is a pack upload id.</summary>
+    [JsonPropertyName("pack_folders")]
+    public required List<string> PackFolders { get; init; }
+
+    /// <summary>UTC time the seed directory was listed.</summary>
+    [JsonPropertyName("reported_at")]
+    public DateTime ReportedAt { get; init; } = DateTime.UtcNow;
+
+    public static SeedInventoryReportedMessage Create(string seederSite, List<string> packFolders)
+        => new()
+        {
+            SeederSite = seederSite,
+            PackFolders = packFolders
+        };
+}
