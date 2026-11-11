@@ -31,6 +31,34 @@ public interface IMediaUploadMessage
 }
 
 /// <summary>
+/// Sent by storage when every byte of an upload has arrived and the upload has been accepted for processing.
+/// </summary>
+/// <remarks>Between the last byte and the completion message storage hashes and stores the file, which takes minutes for a
+/// large model. This is what lets the site record "received, being processed" instead of going on calling it an upload in
+/// flight. It is a hint, not a guarantee: a site that never gets it still learns the outcome from the completion message or
+/// from storage's status endpoint.</remarks>
+public record MediaUploadReceivedMessage : IMediaUploadMessage
+{
+    [JsonPropertyName("upload_id")]
+    public required string UploadId { get; init; }
+
+    [JsonPropertyName("media_type")]
+    public required MediaType MediaType { get; init; }
+
+    [JsonPropertyName("user_id")]
+    public required string UserId { get; init; }
+
+    [JsonPropertyName("source_site")]
+    public string SourceSite { get; init; } = string.Empty;
+
+    [JsonPropertyName("timestamp")]
+    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+
+    [JsonPropertyName("file_size_bytes")]
+    public long? FileSizeBytes { get; init; }
+}
+
+/// <summary>
 /// Sent when a media upload is initiated
 /// </summary>
 public record MediaUploadStartedMessage : IMediaUploadMessage

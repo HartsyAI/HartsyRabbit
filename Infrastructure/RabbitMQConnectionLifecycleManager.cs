@@ -15,6 +15,7 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
 
     private IConnection? _connection;
     private IChannel? _publishChannel;
+    private IChannel? _confirmedPublishChannel;
 
     private readonly ConcurrentDictionary<string, IChannel> _consumerChannels = new();
     private readonly ConcurrentDictionary<string, string> _consumerTags = new();
@@ -88,6 +89,12 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
                 _publishChannel.Dispose();
                 _publishChannel = null;
             }
+            if (_confirmedPublishChannel != null)
+            {
+                try { await _confirmedPublishChannel.CloseAsync(cancellationToken: cancellationToken); } catch { }
+                _confirmedPublishChannel.Dispose();
+                _confirmedPublishChannel = null;
+            }
 
             if (_connection != null)
             {
@@ -156,6 +163,44 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
             };
 
             return _publishChannel;
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
+    }
+
+    /// <summary>A second publish channel, with publisher confirmations on.</summary>
+    /// <remarks>Kept apart from the ordinary one on purpose. On this channel a publish waits for the broker's answer and throws
+    /// when the message is refused or returned as unroutable. The ordinary channel only logs a returned message, and callers
+    /// across every site rely on that, so confirmations are something a caller asks for, never something it gets.</remarks>
+    public async Task<IChannel> GetConfirmedPublishChannelAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_started) throw new InvalidOperationException("Connection manager must be started before publishing.");
+
+        if (_confirmedPublishChannel != null && _confirmedPublishChannel.IsOpen && _connection?.IsOpen == true)
+        {
+            return _confirmedPublishChannel;
+        }
+
+        await _connectionLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_connection?.IsOpen != true)
+            {
+                await ConnectInternalAsync(cancellationToken);
+            }
+
+            if (_confirmedPublishChannel != null && _confirmedPublishChannel.IsOpen)
+            {
+                return _confirmedPublishChannel;
+            }
+
+            _confirmedPublishChannel?.Dispose();
+            _confirmedPublishChannel = await _connection!.CreateChannelAsync(
+                new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+                cancellationToken);
+            return _confirmedPublishChannel;
         }
         finally
         {
@@ -347,6 +392,8 @@ public sealed class RabbitMQConnectionLifecycleManager : IRabbitMQConnectionLife
             _consumerTags.Clear();
             _publishChannel?.Dispose();
             _publishChannel = null;
+            _confirmedPublishChannel?.Dispose();
+            _confirmedPublishChannel = null;
             _connection?.Dispose();
             _connection = null;
         }

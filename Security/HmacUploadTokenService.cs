@@ -39,7 +39,7 @@ public sealed class UploadTokenOptions
 /// tokens are signed with <c>CurrentSecret</c> and validated against both <c>CurrentSecret</c>
 /// and <c>PreviousSecret</c>.
 /// </summary>
-public sealed class HmacUploadTokenService : IUploadTokenService
+public sealed class HmacUploadTokenService : IUploadTokenService, IAcceptedUploadTokenValidator
 {
     // Claim types (short names keep the payload compact).
     public const string ClaimUploadId = "uid";
@@ -94,7 +94,11 @@ public sealed class HmacUploadTokenService : IUploadTokenService
         return _handler.WriteToken(jwt);
     }
 
-    public bool TryValidate(string token, out UploadTokenClaims? claims, out string? error)
+    public bool TryValidate(string token, out UploadTokenClaims? claims, out string? error) => TryValidate(token, validateLifetime: true, out claims, out error);
+
+    public bool TryValidateForAcceptedUpload(string token, out UploadTokenClaims? claims, out string? error) => TryValidate(token, validateLifetime: false, out claims, out error);
+
+    private bool TryValidate(string token, bool validateLifetime, out UploadTokenClaims? claims, out string? error)
     {
         claims = null;
         error = null;
@@ -113,7 +117,7 @@ public sealed class HmacUploadTokenService : IUploadTokenService
             ValidateAudience = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKeys = _validationKeys,
-            ValidateLifetime = true,
+            ValidateLifetime = validateLifetime,
             RequireExpirationTime = true,
             ClockSkew = TimeSpan.FromSeconds(_options.ClockSkewSeconds),
             ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 }
