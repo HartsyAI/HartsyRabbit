@@ -5,6 +5,11 @@ namespace HartsyRabbit.Core;
 public interface ITypeSafeMessageBus
 {
     Task PublishAsync<TMessage>(TMessage message, string targetSites = "*", string? correlationId = null, CancellationToken cancellationToken = default) where TMessage : class;
+
+    /// <summary>Publishes and waits for the broker to confirm it has the message. Throws when the broker refuses it or cannot route it.</summary>
+    /// <remarks>An implementation that has no confirmed channel, a test double for one, publishes the ordinary way.</remarks>
+    Task PublishConfirmedAsync<TMessage>(TMessage message, string targetSites = "*", string? correlationId = null, CancellationToken cancellationToken = default) where TMessage : class =>
+        PublishAsync(message, targetSites, correlationId, cancellationToken);
     void RegisterHandler<TMessage>(ITypeSafeMessageHandler<TMessage> handler) where TMessage : class;
     Task StartAsync(string siteName, CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);

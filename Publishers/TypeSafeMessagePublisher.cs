@@ -28,7 +28,16 @@ public sealed class TypeSafeMessagePublisher : ITypeSafeMessagePublisher, IDispo
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task PublishAsync<TMessage>(GenericMessageEnvelope<TMessage> envelope, CancellationToken cancellationToken = default) where TMessage : class
+    public Task PublishAsync<TMessage>(GenericMessageEnvelope<TMessage> envelope, CancellationToken cancellationToken = default) where TMessage : class =>
+        PublishAsync(envelope, confirmed: false, cancellationToken);
+
+    /// <summary>Publishes on the confirmed channel: returns once the broker has the message, and throws when it refuses it or returns it as unroutable.</summary>
+    /// <remarks>For a message whose loss nothing else would notice, such as the notice that an upload finished. It costs a round
+    /// trip to the broker, and it turns "no queue is bound for this" into an exception, which is why it is not the default.</remarks>
+    public Task PublishConfirmedAsync<TMessage>(GenericMessageEnvelope<TMessage> envelope, CancellationToken cancellationToken = default) where TMessage : class =>
+        PublishAsync(envelope, confirmed: true, cancellationToken);
+
+    private async Task PublishAsync<TMessage>(GenericMessageEnvelope<TMessage> envelope, bool confirmed, CancellationToken cancellationToken) where TMessage : class
     {
         if (envelope == null) throw new ArgumentNullException(nameof(envelope));
 
@@ -38,7 +47,9 @@ public sealed class TypeSafeMessagePublisher : ITypeSafeMessagePublisher, IDispo
             string body = JsonMessageSerializer.Serialize(envelope);
             MessageRoutingInfo routing = DetermineRouting(envelope);
 
-            IChannel channel = await _connectionManager.GetPublishChannelAsync(cancellationToken);
+            IChannel channel = confirmed
+                ? await _connectionManager.GetConfirmedPublishChannelAsync(cancellationToken)
+                : await _connectionManager.GetPublishChannelAsync(cancellationToken);
 
             BasicProperties props = new BasicProperties
             {

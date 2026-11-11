@@ -53,14 +53,27 @@ public sealed class TypeSafeMessageBus : ITypeSafeMessageBus
     public event EventHandler<MessageProcessedEventArgs>? MessageProcessed;
     public event EventHandler<MessageErrorEventArgs>? MessageError;
 
-    public async Task PublishAsync<TMessage>(TMessage message, string targetSites = "*", string? correlationId = null, CancellationToken cancellationToken = default) where TMessage : class
+    public Task PublishAsync<TMessage>(TMessage message, string targetSites = "*", string? correlationId = null, CancellationToken cancellationToken = default) where TMessage : class =>
+        PublishAsync(message, targetSites, correlationId, confirmed: false, cancellationToken);
+
+    public Task PublishConfirmedAsync<TMessage>(TMessage message, string targetSites = "*", string? correlationId = null, CancellationToken cancellationToken = default) where TMessage : class =>
+        PublishAsync(message, targetSites, correlationId, confirmed: true, cancellationToken);
+
+    private async Task PublishAsync<TMessage>(TMessage message, string targetSites, string? correlationId, bool confirmed, CancellationToken cancellationToken) where TMessage : class
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
         if (!_started) throw new InvalidOperationException("Message bus must be started before publishing.");
 
         GenericMessageEnvelope<TMessage> envelope = GenericMessageEnvelope<TMessage>.Create(message, _siteName, targetSites, correlationId);
 
-        await _publisher.PublishAsync(envelope, cancellationToken);
+        if (confirmed)
+        {
+            await _publisher.PublishConfirmedAsync(envelope, cancellationToken);
+        }
+        else
+        {
+            await _publisher.PublishAsync(envelope, cancellationToken);
+        }
 
         Interlocked.Increment(ref _messagesPublished);
 

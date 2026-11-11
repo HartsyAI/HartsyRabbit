@@ -21,6 +21,9 @@ public interface IRabbitMQConnectionLifecycleManager
 
     Task<RabbitMQ.Client.IChannel> GetPublishChannelAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>A channel whose publishes complete only when the broker has confirmed them, and throw when it refuses or cannot route them.</summary>
+    Task<RabbitMQ.Client.IChannel> GetConfirmedPublishChannelAsync(CancellationToken cancellationToken = default);
+
     Task StartConsumingAsync(
         string queueName,
         Func<string, Dictionary<string, object?>, Task<MessageConsumeResult>> messageHandler,

@@ -39,7 +39,10 @@ public static class UploadTokenServiceExtensions
                 "UploadTokens:IssuerLifetimeMinutes must be > 0.")
             .ValidateOnStart();
 
-        services.AddSingleton<IUploadTokenService, HmacUploadTokenService>();
+        // One instance behind both interfaces, so they share the keys and the options.
+        services.AddSingleton<HmacUploadTokenService>();
+        services.AddSingleton<IUploadTokenService>(provider => provider.GetRequiredService<HmacUploadTokenService>());
+        services.AddSingleton<IAcceptedUploadTokenValidator>(provider => provider.GetRequiredService<HmacUploadTokenService>());
         return services;
     }
 }
